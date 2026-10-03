@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: hazeshield-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:api --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: HAZESHIELD_DATABASE_PATH
+        value: /tmp/hazeshield.db
+      - key: HAZESHIELD_SESSION_SECRET
+        generateValue: true
+
+  - type: web
+    name: hazeshield-customer
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run customer_app.py --server.address 0.0.0.0 --server.port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: HAZESHIELD_API_URL
+        fromService:
+          type: web
+          name: hazeshield-api
+          property: host
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: "true"
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"
+
+  - type: web
+    name: hazeshield-admin
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run admin_app.py --server.address 0.0.0.0 --server.port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: HAZESHIELD_API_URL
+        fromService:
+          type: web
+          name: hazeshield-api
+          property: host
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: "true"
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"

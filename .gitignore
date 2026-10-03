@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+.streamlit/secrets.toml
+hazeshield.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
