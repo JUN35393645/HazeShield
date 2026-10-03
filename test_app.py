@@ -52,15 +52,19 @@ class HazeShieldTests(unittest.TestCase):
     def test_api_base_url_normalizes_render_internal_hostport(self) -> None:
         self.assertEqual(
             app.normalize_api_base_url("hazeshield-api:10000"),
-            "http://hazeshield-api:10000",
+            "http://hazeshield-api:10000/api/v1",
         )
         self.assertEqual(
             app.normalize_api_base_url("hazeshield-api.onrender.com"),
-            "https://hazeshield-api.onrender.com",
+            "https://hazeshield-api.onrender.com/api/v1",
         )
         self.assertEqual(
             app.normalize_api_base_url("http://127.0.0.1:8000/api/v1/"),
             "http://127.0.0.1:8000/api/v1",
+        )
+        self.assertEqual(
+            app.normalize_api_base_url("https://hazeshield-api.onrender.com/api/v1"),
+            "https://hazeshield-api.onrender.com/api/v1",
         )
 
     def test_password_hash_and_session_token_validation(self) -> None:

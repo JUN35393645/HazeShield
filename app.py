@@ -35,6 +35,8 @@ def normalize_api_base_url(value: str) -> str:
     if not base_url.startswith(("http://", "https://")):
         scheme = "http" if ":" in base_url else "https"
         base_url = f"{scheme}://{base_url}"
+    if not base_url.endswith("/api/v1"):
+        base_url = f"{base_url}/api/v1"
     return base_url
 
 
