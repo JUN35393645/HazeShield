@@ -28,9 +28,19 @@ ZONES = [
     ("Kota Kinabalu", "Sabah"),
 ]
 DATABASE_PATH = Path(os.environ.get("HAZESHIELD_DATABASE_PATH", Path(__file__).with_name("hazeshield.db")))
-API_BASE_URL = os.environ.get("HAZESHIELD_API_URL", "http://127.0.0.1:8000/api/v1").rstrip("/")
-if not API_BASE_URL.startswith(("http://", "https://")):
-    API_BASE_URL = f"https://{API_BASE_URL}"
+
+
+def normalize_api_base_url(value: str) -> str:
+    base_url = value.rstrip("/")
+    if not base_url.startswith(("http://", "https://")):
+        scheme = "http" if ":" in base_url else "https"
+        base_url = f"{scheme}://{base_url}"
+    return base_url
+
+
+API_BASE_URL = normalize_api_base_url(
+    os.environ.get("HAZESHIELD_API_URL", "http://127.0.0.1:8000/api/v1")
+)
 
 
 def request_api(

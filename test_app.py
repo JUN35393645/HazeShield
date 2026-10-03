@@ -49,6 +49,20 @@ class HazeShieldTests(unittest.TestCase):
         self.assertEqual(app.band_for(200)[0], "Unhealthy")
         self.assertEqual(app.band_for(201)[0], "Very unhealthy")
 
+    def test_api_base_url_normalizes_render_internal_hostport(self) -> None:
+        self.assertEqual(
+            app.normalize_api_base_url("hazeshield-api:10000"),
+            "http://hazeshield-api:10000",
+        )
+        self.assertEqual(
+            app.normalize_api_base_url("hazeshield-api.onrender.com"),
+            "https://hazeshield-api.onrender.com",
+        )
+        self.assertEqual(
+            app.normalize_api_base_url("http://127.0.0.1:8000/api/v1/"),
+            "http://127.0.0.1:8000/api/v1",
+        )
+
     def test_password_hash_and_session_token_validation(self) -> None:
         password_hash = hash_password("correct horse battery")
         self.assertNotEqual(password_hash, "correct horse battery")
