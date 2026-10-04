@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
@@ -11,6 +12,24 @@ OCCUPATIONS = [
     "Delivery rider", "E-hailing driver", "Food vendor", "Market trader",
     "Construction worker", "Outdoor service worker", "Other",
 ]
+APP_DIRECTORY = Path(__file__).resolve().parent
+
+
+def render_brand() -> None:
+    with st.container(key="brand_logo"):
+        st.image(str(APP_DIRECTORY / "HazeShield Logo.png"), width=360)
+
+
+def air_quality_sticker(reading: int | None) -> Path | None:
+    if reading is None:
+        return None
+    if reading <= 100:
+        name = "Good.png"
+    elif reading <= 150:
+        name = "Moderate.png"
+    else:
+        name = "Bad.png"
+    return APP_DIRECTORY / name
 
 
 def set_account_session(auth_result: dict) -> None:
@@ -170,7 +189,7 @@ def public_home(zones: list[dict], plans: list[dict]) -> None:
     if st.button("Get Protection Now", type="primary", use_container_width=True):
         st.session_state["go_get_protection"] = True
         st.rerun()
-    st.caption("Payments and payouts are simulated; no insurance contract or real transaction is created.")
+    st.caption("Plan information is indicative. This site does not issue insurance cover or transfer funds.")
 
     st.markdown("### Haze can interrupt a workday")
     st.write("Haze can irritate the eyes and airways, make outdoor work harder, and disrupt the hours people rely on to earn. HazeShield explores a clear, pre-defined support trigger with personal or employer-sponsored cover.")
@@ -185,15 +204,28 @@ def public_home(zones: list[dict], plans: list[dict]) -> None:
     latest = snapshot["latest"]
     reading = latest["api_value"] if latest else None
     label, color, background = band_for(reading)
+    reading_source = latest["source"] if latest else "not available"
+    if reading_source == "SIMULATED":
+        reading_source = "HazeShield local data"
     reading_column, chart_column = st.columns([0.8, 1.8])
     with reading_column:
-        st.markdown(
-            f"<div class='air-panel'><span class='eyebrow'>{zone['name']} · {latest['reading_date'] if latest else 'NO READING'}</span>"
-            f"<div class='air-value' style='color:{color}'>{reading if reading is not None else '—'}</div>"
-            f"<span class='air-band' style='background:{background};color:{color}'>{label}</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.caption(f"Source: {latest['source'] if latest else 'not available'}. Readings are not official health guidance.")
+        with st.container(border=True):
+            st.markdown(
+                f"<span class='eyebrow'>{zone['name']} · {latest['reading_date'] if latest else 'NO READING'}</span>",
+                unsafe_allow_html=True,
+            )
+            number_column, sticker_column = st.columns([1, 1])
+            with number_column:
+                st.markdown(
+                    f"<div class='air-value' style='color:{color}'>{reading if reading is not None else '—'}</div>"
+                    f"<span class='air-band' style='background:{background};color:{color}'>{label}</span>",
+                    unsafe_allow_html=True,
+                )
+            sticker = air_quality_sticker(reading)
+            if sticker is not None and sticker.is_file():
+                with sticker_column:
+                    st.image(str(sticker), width=160)
+        st.caption(f"Source: {reading_source}. Readings are not official health guidance.")
     with chart_column:
         history = list(reversed(snapshot["history"]))
         if history:
@@ -252,13 +284,13 @@ def individual_account(profile: dict, zones: list[dict], plans: list[dict], toke
             (index for index, item in enumerate(zones) if item["id"] == zone_id), 0
         ), format_func=lambda item: f"{item['name']}, {item['state']}")
         wallet = st.selectbox("Payout wallet", ["Touch n Go", "GrabPay", "Boost"])
-        submitted = st.form_submit_button("Activate cover (simulated)", type="primary")
+        submitted = st.form_submit_button("Select plan", type="primary")
     if submitted:
         try:
             request_api("/policies", "POST", {
                 "plan_id": plan["id"], "zone_id": covered_zone["id"], "wallet": wallet,
             }, token=token)
-            st.success("Plan selection recorded. Refreshing protection status.")
+            st.success("Plan selection recorded. Refreshing your account.")
             st.rerun()
         except RuntimeError as error:
             st.error(str(error))
@@ -324,12 +356,12 @@ def employer_account(profile: dict, zones: list[dict], plans: list[dict], token:
         group_plan = group_plans[0]
         st.markdown(f"**{group_plan['name']}** · {money(group_plan['price'])} · {group_plan['description']}")
         zone = st.selectbox("Work zone", zones, format_func=lambda item: f"{item['name']}, {item['state']}", key="employer_zone")
-        if st.button("Activate group cover (simulated)", type="primary", disabled=not members):
+        if st.button("Select group plan", type="primary", disabled=not members):
             try:
                 request_api("/policies", "POST", {
                     "plan_id": group_plan["id"], "zone_id": zone["id"], "wallet": "Touch n Go",
                 }, token=token)
-                st.success("Group plan selection recorded. Active roster members are covered.")
+                st.success("Group plan selection recorded. Refreshing your account.")
                 st.rerun()
             except RuntimeError as error:
                 st.error(str(error))
@@ -364,13 +396,14 @@ def main() -> None:
             st.session_state["public_navigation"] = "Get protection"
         if st.session_state.pop("go_sign_in", False):
             st.session_state["public_navigation"] = "Sign in"
-        st.markdown("<div class='eyebrow' style='font-size:1.2rem'>HazeShield</div>", unsafe_allow_html=True)
+        render_brand()
         page = st.radio(
             "Navigate",
             ["Home", "Plans", "Sign in", "Get protection"],
             horizontal=True,
             key="public_navigation",
             label_visibility="collapsed",
+            width="stretch",
         )
         if page == "Home":
             st.markdown(
@@ -402,11 +435,10 @@ def main() -> None:
         else:
             st.markdown("<div class='hero'><div class='eyebrow'>GET PROTECTION</div><h1>Create your account</h1><p>Choose personal cover or set up an employer account for your team.</p></div>", unsafe_allow_html=True)
             sign_up(zones, plans)
-            st.caption("Account creation does not activate cover or charge a payment. All payments and payouts are simulated.")
-        if page != "Get protection":
-            st.caption("Payments and payouts are simulated; no insurance contract or real transaction is created.")
+            st.caption("Creating an account does not activate cover. This site does not issue coverage or transfer funds.")
         return
 
+    render_brand()
     st.markdown(
         f"<div class='hero'><div class='eyebrow'>{account['role'].upper()} ACCOUNT</div>"
         f"<h1>Welcome, {account['name']}</h1><p>Manage your HazeShield account and coverage.</p></div>",

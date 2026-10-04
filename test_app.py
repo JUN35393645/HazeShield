@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import app
+import customer_app
 from fastapi import HTTPException
 from backend import feed
 from backend.security import hash_password, issue_session_token, session_user_id, verify_password
@@ -48,6 +49,13 @@ class HazeShieldTests(unittest.TestCase):
         self.assertEqual(app.band_for(151)[0], "Unhealthy")
         self.assertEqual(app.band_for(200)[0], "Unhealthy")
         self.assertEqual(app.band_for(201)[0], "Very unhealthy")
+
+    def test_air_quality_stickers_follow_api_severity_bands(self) -> None:
+        self.assertIsNone(customer_app.air_quality_sticker(None))
+        self.assertEqual(customer_app.air_quality_sticker(100).name, "Good.png")
+        self.assertEqual(customer_app.air_quality_sticker(101).name, "Moderate.png")
+        self.assertEqual(customer_app.air_quality_sticker(150).name, "Moderate.png")
+        self.assertEqual(customer_app.air_quality_sticker(151).name, "Bad.png")
 
     def test_api_base_url_normalizes_render_internal_hostport(self) -> None:
         self.assertEqual(

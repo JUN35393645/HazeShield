@@ -1,15 +1,70 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
 from app import money, render_styles, request_api
 
 
+APP_DIRECTORY = Path(__file__).resolve().parent
+
+
+def render_bar_chart(
+    rows: list[dict[str, str | int]],
+    category: str,
+    value: str,
+    split_by: str | None = None,
+) -> None:
+    if not rows:
+        st.info("Not enough account data to display this chart yet.")
+        return
+    encoding: dict[str, object] = {
+        "x": {
+            "field": category,
+            "type": "nominal",
+            "sort": "-y",
+            "axis": {"title": None, "labelAngle": -25},
+        },
+        "y": {
+            "field": value,
+            "type": "quantitative",
+            "axis": {"title": None, "gridColor": "#e7e9df"},
+        },
+    }
+    if split_by:
+        encoding["color"] = {
+            "field": split_by,
+            "type": "nominal",
+            "scale": {"range": ["#176b52", "#ee7658"]},
+            "legend": {"title": None},
+        }
+    st.vega_lite_chart(
+        spec={
+            "data": {"values": rows},
+            "mark": {
+                "type": "bar",
+                "color": "#176b52",
+                "cornerRadiusTopLeft": 5,
+                "cornerRadiusTopRight": 5,
+            },
+            "encoding": encoding,
+            "config": {
+                "view": {"stroke": None},
+                "axis": {"labelColor": "#66746d", "titleColor": "#66746d"},
+            },
+        },
+        use_container_width=True,
+    )
+
+
 def main() -> None:
     st.set_page_config(page_title="HazeShield Admin", page_icon="🌿", layout="wide")
     render_styles(st)
+    with st.container(key="brand_logo"):
+        st.image(str(APP_DIRECTORY / "HazeShield Logo.png"), width=360)
     token = st.session_state.get("admin_access_token")
     account = None
     if token:
@@ -38,7 +93,7 @@ def main() -> None:
                 st.rerun()
             except RuntimeError as error:
                 st.error(str(error))
-        st.caption("Prototype console. Sign-in does not make this demo suitable for public deployment.")
+        st.caption("Administrative access is restricted to authorized operators.")
         st.stop()
     if account["role"] != "admin":
         st.error("Admin access required.")
@@ -53,15 +108,15 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### HazeShield Admin")
         st.caption(f"Signed in as {account['email']}")
-        page = st.radio("Management", ["Overview", "Accounts and policies", "Trigger simulation", "Audit log"])
+        page = st.radio("Management", ["Overview", "Accounts and policies", "Trigger tools", "Audit log"])
         if st.button("Sign out"):
             st.session_state.pop("admin_access_token", None)
             st.rerun()
-        st.caption("Demo management console")
+        st.caption("Operations console")
 
     st.markdown(
         f"<div class='hero'><div class='eyebrow'>ADMIN CONSOLE · {date.today():%d %b %Y}</div>"
-        "<h1>HazeShield operations</h1><p>Review demo accounts, policies, zone readings, and system activity.</p></div>",
+        "<h1>HazeShield operations</h1><p>Review accounts, policies, zone readings, and system activity.</p></div>",
         unsafe_allow_html=True,
     )
 
@@ -69,25 +124,81 @@ def main() -> None:
         overview = request_api("/admin/overview", token=token)
         first, second, third, fourth = st.columns(4)
         first.metric("Active policies", overview["active_policies"])
-        second.metric("Demo premiums", money(overview["paid_premiums"]))
-        third.metric("Simulated payouts", money(overview["paid_payouts"]))
+        second.metric("Premium records", money(overview["paid_premiums"]))
+        third.metric("Payout records", money(overview["paid_payouts"]))
         fourth.metric("Trigger events", overview["trigger_events"])
+        st.caption("Premium and payout amounts shown here are records; no funds are transferred.")
+
+        profiles = []
+        for role in ("customer", "employer"):
+            profiles.extend(request_api(f"/users?role={role}", token=token))
+        account_zone_counts: Counter[str] = Counter()
+        account_type_counts: Counter[str] = Counter()
+        policy_by_id: dict[int, dict[str, str]] = {}
+        for profile in profiles:
+            account_type_counts[profile["role"].title()] += 1
+            zone_name = next(
+                (zone["name"] for zone in zones if zone["id"] == profile["zone_id"]),
+                "Unknown",
+            )
+            if profile["role"] == "customer":
+                account_zone_counts[zone_name] += 1
+            dashboard = request_api(f"/users/{profile['id']}/dashboard", token=token)
+            for policy in dashboard["policies"]:
+                policy_by_id[policy["id"]] = {
+                    "Plan": policy["plan_name"],
+                    "Status": policy["status"].title(),
+                }
+
+        charts = st.columns(2)
+        with charts[0]:
+            st.markdown("### Individual accounts by zone")
+            render_bar_chart(
+                [{"Zone": zone, "Customers": count} for zone, count in account_zone_counts.items()],
+                "Zone",
+                "Customers",
+            )
+        with charts[1]:
+            st.markdown("### Account mix")
+            render_bar_chart(
+                [{"Account type": role, "Accounts": count} for role, count in account_type_counts.items()],
+                "Account type",
+                "Accounts",
+            )
+        policy_counts: Counter[tuple[str, str]] = Counter(
+            (policy["Plan"], policy["Status"]) for policy in policy_by_id.values()
+        )
+        if policy_counts:
+            st.markdown("### Policy records by plan and status")
+            render_bar_chart(
+                [
+                    {"Plan": plan, "Status": status, "Policies": count}
+                    for (plan, status), count in policy_counts.items()
+                ],
+                "Plan",
+                "Policies",
+                split_by="Status",
+            )
+
         st.markdown("### Zone status")
         rows = []
         for zone in zones:
             latest = request_api(f"/zones/{zone['id']}/dashboard")["latest"]
+            source = latest["source"] if latest else "No reading"
+            if source == "SIMULATED":
+                source = "HazeShield local data"
             rows.append({
                 "Zone": zone["name"], "State": zone["state"],
                 "Index": latest["api_value"] if latest else None,
                 "Reading date": latest["reading_date"] if latest else "—",
-                "Source": latest["source"] if latest else "No reading",
+                "Source": source,
             })
         st.dataframe(rows, hide_index=True, use_container_width=True)
         feed = config["feed"]
-        st.info(f"Feed: {feed['source']} · configured: {feed['configured']} · mode: {config['data_mode']}")
+        st.info(f"Reading source: {feed['source']} · external feed configured: {feed['configured']}")
         if feed["last_error"]:
             st.warning(f"Latest feed error: {feed['last_error']}")
-        st.caption("Imported live-feed readings remain display-only until their source and index scale are approved.")
+        st.caption("Imported feed readings are for display only until their source and index scale are verified.")
 
     elif page == "Accounts and policies":
         st.markdown("### Account directory")
@@ -137,9 +248,9 @@ def main() -> None:
             else:
                 st.info("This account has no policy to manage.")
 
-    elif page == "Trigger simulation":
-        st.markdown("### Inject a simulated reading")
-        st.warning("This writes demo data and can create simulated trigger events and payouts.")
+    elif page == "Trigger tools":
+        st.markdown("### Record a manual reading")
+        st.warning("Manually entered readings are evaluated against trigger rules. Payout records do not transfer funds.")
         with st.form("admin_simulation"):
             zone = st.selectbox("Zone", zones, format_func=lambda item: item["name"])
             reading_day = st.date_input("Reading date", value=date.today())
@@ -154,7 +265,7 @@ def main() -> None:
                 if result["missing"]:
                     st.warning("A neighboring day's reading is missing. No trigger was created.")
                 elif result["triggered"]:
-                    st.success(f"Trigger event #{result['event_id']} confirmed; {result['payouts']} new demo payout(s).")
+                    st.success(f"Trigger event #{result['event_id']} confirmed; {result['payouts']} payout record(s) created.")
                 else:
                     st.info("Reading stored. The qualifying-day threshold has not been met yet.")
             except RuntimeError as error:
@@ -168,12 +279,12 @@ def main() -> None:
         else:
             st.info("No admin actions have been recorded.")
         st.divider()
-        st.markdown("#### Reset demo database")
-        confirmed = st.checkbox("I understand that this clears demo activity and reseeds the database.")
-        if st.button("Reset demo data", disabled=not confirmed, type="secondary"):
+        st.markdown("#### Reset database")
+        confirmed = st.checkbox("I understand that this clears activity and restores the initial data.")
+        if st.button("Reset data", disabled=not confirmed, type="secondary"):
             try:
                 request_api("/admin/reset", "POST", token=token)
-                st.success("Demo data reset. Refresh the page to reload the seeded state.")
+                st.success("Data reset. Refresh the page to reload the initial state.")
             except RuntimeError as error:
                 st.error(str(error))
 
