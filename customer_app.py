@@ -276,7 +276,12 @@ def individual_account(profile: dict, zones: list[dict], plans: list[dict], toke
         st.markdown("### Zone trend")
         with st.container(border=True):
             st.caption("Daily API index · dashed line marks the API 150 trigger threshold")
-            render_api_chart(list(reversed(history)), height=220)
+            ordered_history = list(reversed(history))
+            render_api_chart(
+                ordered_history,
+                api_chart_key(zone_id, ordered_history),
+                height=220,
+            )
 
     st.markdown("### Personal plans")
     preferred_plan_id = st.session_state.pop("preferred_plan_id", None)
