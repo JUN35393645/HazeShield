@@ -20,6 +20,7 @@ from backend.main import (
     PolicyPurchase,
     PolicyStatusUpdate,
     add_employer_member,
+    anonymize_user_account,
     admin_account,
     create_policy_for_account,
     ensure_demo_credentials,
@@ -57,6 +58,12 @@ class HazeShieldTests(unittest.TestCase):
         self.assertEqual(customer_app.air_quality_sticker(150).name, "Moderate.png")
         self.assertEqual(customer_app.air_quality_sticker(151).name, "Bad.png")
 
+    def test_area_chart_keys_change_with_zone_and_readings(self) -> None:
+        history = [{"reading_date": "2026-10-01", "api_value": 80}]
+        changed_history = [{"reading_date": "2026-10-01", "api_value": 160}]
+        self.assertNotEqual(customer_app.api_chart_key(1, history), customer_app.api_chart_key(2, history))
+        self.assertNotEqual(customer_app.api_chart_key(1, history), customer_app.api_chart_key(1, changed_history))
+
     def test_api_base_url_normalizes_render_internal_hostport(self) -> None:
         self.assertEqual(
             app.normalize_api_base_url("hazeshield-api:10000"),
@@ -90,6 +97,13 @@ class HazeShieldTests(unittest.TestCase):
         self.assertEqual(api_get_config()["data_mode"], "simulated")
         self.assertEqual(len(api_get_zones()), 7)
         self.assertEqual(api_zone_dashboard(1)["latest"]["source"], "SIMULATED")
+
+    def test_default_zone_has_a_bad_sticker_reading_today(self) -> None:
+        default_zone = app.get_zones()[0]
+        self.assertEqual(default_zone["name"], "Ipoh")
+        reading = app.get_reading(default_zone["id"], date.today())
+        self.assertGreater(reading, 150)
+        self.assertEqual(customer_app.air_quality_sticker(reading).name, "Bad.png")
 
     def test_demo_accounts_are_not_duplicated_on_database_reinitialization(self) -> None:
         initial_ids = [user["id"] for user in app.get_users()]
@@ -141,6 +155,7 @@ class HazeShieldTests(unittest.TestCase):
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM policies WHERE id=1").fetchone()[0], 1)
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             self.assertIn("password_hash", columns)
+            self.assertIn("account_status", columns)
         finally:
             app.DATABASE_PATH = previous_path
 
@@ -211,6 +226,53 @@ class HazeShieldTests(unittest.TestCase):
                 (admin["id"],),
             ).fetchone()
         self.assertEqual(audit["action"], "policy_status_change")
+
+    def test_admin_anonymizes_account_and_retains_financial_history(self) -> None:
+        zone = next(item for item in app.get_zones() if item["name"] == "Klang Valley")
+        registration = register_account(AccountCreation(
+            name="Privacy Test User", email="privacy.test@gmail.com", password="StrongPass123!",
+            zone_id=zone["id"], account_type="individual", occupation="Delivery rider",
+        ))
+        customer = registration["account"]
+        monthly_plan = next(plan for plan in app.get_plans() if plan["plan_type"] == "monthly")
+        create_policy_for_account(PolicyPurchase(
+            plan_id=monthly_plan["id"], zone_id=zone["id"], wallet="Touch n Go",
+        ), customer)
+        first_day = date.today() + timedelta(days=2)
+        app.inject_reading(zone["id"], first_day, 160, 5)
+        payout_result = app.inject_reading(zone["id"], first_day + timedelta(days=1), 165, 5)
+        self.assertGreaterEqual(payout_result["payouts"], 2)
+
+        admin = public_account(app.get_users("admin")[0])
+        with self.assertRaises(HTTPException):
+            anonymize_user_account(customer["id"], customer)
+        self.assertEqual(anonymize_user_account(customer["id"], admin)["status"], "anonymized")
+
+        with app.connect() as db:
+            account = db.execute("SELECT * FROM users WHERE id=?", (customer["id"],)).fetchone()
+            policy = db.execute("SELECT status FROM policies WHERE user_id=?", (customer["id"],)).fetchone()
+            payment = db.execute("SELECT method FROM payments WHERE user_id=?", (customer["id"],)).fetchone()
+            payouts = db.execute(
+                "SELECT wallet FROM payouts JOIN policies ON policies.id=payouts.policy_id "
+                "WHERE policies.user_id=?",
+                (customer["id"],),
+            ).fetchall()
+            audit = db.execute(
+                "SELECT action FROM audit_logs WHERE actor_id=? ORDER BY id DESC LIMIT 1",
+                (admin["id"],),
+            ).fetchone()
+        self.assertEqual(account["account_status"], "deleted")
+        self.assertIsNone(account["email"])
+        self.assertIsNone(account["password_hash"])
+        self.assertEqual(policy["status"], "cancelled")
+        self.assertEqual(payment["method"], "Anonymized")
+        self.assertEqual(len(payouts), 2)
+        self.assertTrue(all(row["wallet"] == "Anonymized" for row in payouts))
+        self.assertEqual(audit["action"], "account_anonymized")
+        self.assertNotIn(customer["id"], [row["id"] for row in app.get_users("customer")])
+        with self.assertRaises(HTTPException):
+            login_account(LoginRequest(email=customer["email"], password="StrongPass123!"))
+
     def test_employer_can_add_existing_account_and_sponsor_coverage(self) -> None:
         zone = app.get_zones()[0]
         member_result = register_account(AccountCreation(

@@ -113,6 +113,7 @@ def init_database() -> None:
                 id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL,
                 zone_id INTEGER REFERENCES zones(id), wallet TEXT DEFAULT 'Touch n Go',
                 referral_code TEXT NOT NULL UNIQUE, email TEXT, password_hash TEXT,
+                account_status TEXT NOT NULL DEFAULT 'active',
                 occupation TEXT, occupation_other TEXT, company_name TEXT
             );
             CREATE TABLE IF NOT EXISTS employer_memberships (
@@ -170,6 +171,7 @@ def init_database() -> None:
         for column, definition in (
             ("email", "TEXT"),
             ("password_hash", "TEXT"),
+            ("account_status", "TEXT NOT NULL DEFAULT 'active'"),
             ("occupation", "TEXT"),
             ("occupation_other", "TEXT"),
             ("company_name", "TEXT"),
@@ -197,6 +199,12 @@ def init_database() -> None:
         db.execute("CREATE INDEX IF NOT EXISTS idx_memberships_customer ON employer_memberships(customer_id, status)")
         if db.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
             ensure_demo_customer(db)
+            db.execute(
+                "UPDATE readings SET api_value=160 WHERE zone_id="
+                "(SELECT id FROM zones WHERE name='Ipoh') AND reading_date=? "
+                "AND source='SIMULATED' AND api_value BETWEEN 25 AND 115",
+                (date.today().isoformat(),),
+            )
             return
         for name, state in ZONES:
             db.execute("INSERT INTO zones(name, state) VALUES (?, ?)", (name, state))
@@ -239,6 +247,8 @@ def init_database() -> None:
             for offset in range(59, -1, -1):
                 reading_date = today - timedelta(days=offset)
                 value = rng.randint(25, 115)
+                if zone_name == "Ipoh" and offset == 0:
+                    value = 160
                 if zone_name == "Klang Valley" and reading_date in (
                     today - timedelta(days=10), today - timedelta(days=9), today - timedelta(days=8)
                 ):
@@ -258,8 +268,13 @@ def get_zones() -> list[sqlite3.Row]:
 def get_users(role: str | None = None) -> list[sqlite3.Row]:
     with connect() as db:
         if role:
-            return db.execute("SELECT * FROM users WHERE role=? ORDER BY id", (role,)).fetchall()
-        return db.execute("SELECT * FROM users ORDER BY id").fetchall()
+            return db.execute(
+                "SELECT * FROM users WHERE role=? AND account_status='active' ORDER BY id",
+                (role,),
+            ).fetchall()
+        return db.execute(
+            "SELECT * FROM users WHERE account_status='active' ORDER BY id"
+        ).fetchall()
 
 
 def get_reading(zone_id: int, on_date: date | None = None) -> int | None:
@@ -395,8 +410,8 @@ def evaluate_zone(zone_id: int, as_of: date) -> dict[str, Any]:
 def inject_reading(zone_id: int, reading_date: date, api_value: int, actor_id: int) -> dict[str, Any]:
     with connect() as db:
         db.execute(
-            "INSERT INTO readings(zone_id, reading_date, api_value, source) VALUES (?, ?, ?, 'SIMULATED') "
-            "ON CONFLICT(zone_id, reading_date) DO UPDATE SET api_value=excluded.api_value, source='SIMULATED'",
+            "INSERT INTO readings(zone_id, reading_date, api_value, source) VALUES (?, ?, ?, 'MANUAL') "
+            "ON CONFLICT(zone_id, reading_date) DO UPDATE SET api_value=excluded.api_value, source='MANUAL'",
             (zone_id, reading_date.isoformat(), api_value),
         )
         db.execute(
@@ -473,8 +488,10 @@ def render_styles(st_module: Any) -> None:
         .st-key-brand_logo [data-testid="stImage"] img { max-width:100%; height:auto; object-fit:contain; }
         [data-testid="stSidebar"] div[data-testid="stRadio"] [data-testid="stRadioOption"],
         [data-testid="stSidebar"] div[data-testid="stRadio"] [data-testid="stRadioOption"] p { color:#f2f7eb !important; }
-        [data-testid="stSidebar"] div[data-testid="stRadio"] [data-testid="stRadioOption"][data-selected="true"] { background:#c7e76b; }
-        [data-testid="stSidebar"] div[data-testid="stRadio"] [data-testid="stRadioOption"][data-selected="true"] p { color:#173c31 !important; }
+        [data-testid="stSidebar"] div[data-testid="stRadio"] [data-testid="stRadioOption"][data-selected="true"] { background:transparent !important; }
+        [data-testid="stSidebar"] div[data-testid="stRadio"] [data-testid="stRadioOption"][data-selected="true"] p { color:#f2f7eb !important; font-weight:700; }
+        [data-testid="stSidebar"] .stButton > button { background:#c7e76b !important; color:#173c31 !important; border:1px solid #c7e76b; }
+        [data-testid="stSidebar"] .stButton > button:hover { background:#b6d65d !important; border-color:#b6d65d; }
         div[data-testid="stMetric"] { background:#fff; border:1px solid #e7e9df; border-radius:8px; padding:16px 18px; }
         div[data-testid="stMetricLabel"] { color:#66746d; }
         div[data-testid="stMetricValue"] { color:#176b52; font-family:'Manrope',sans-serif; }

@@ -119,6 +119,9 @@ def main() -> None:
         "<h1>HazeShield operations</h1><p>Review accounts, policies, zone readings, and system activity.</p></div>",
         unsafe_allow_html=True,
     )
+    notice = st.session_state.pop("admin_notice", None)
+    if notice:
+        st.success(notice)
 
     if page == "Overview":
         overview = request_api("/admin/overview", token=token)
@@ -185,7 +188,7 @@ def main() -> None:
         for zone in zones:
             latest = request_api(f"/zones/{zone['id']}/dashboard")["latest"]
             source = latest["source"] if latest else "No reading"
-            if source == "SIMULATED":
+            if source in {"SIMULATED", "MANUAL"}:
                 source = "HazeShield local data"
             rows.append({
                 "Zone": zone["name"], "State": zone["state"],
@@ -248,8 +251,44 @@ def main() -> None:
             else:
                 st.info("This account has no policy to manage.")
 
+            st.divider()
+            st.markdown("### Delete an account")
+            st.caption(
+                "Personal details and sign-in access will be removed. Any active policies will be cancelled; "
+                "payment and payout history remains with identifying wallet details anonymized."
+            )
+            account_to_delete = st.selectbox(
+                "Account to delete",
+                profiles,
+                format_func=lambda item: f"{item['name']} ({item['role']})",
+                key="admin_delete_account_choice",
+            )
+            confirm_delete = st.checkbox(
+                f"Confirm deletion of {account_to_delete['name']}",
+                key=f"confirm_delete_account_{account_to_delete['id']}",
+            )
+            if st.button("Delete account", disabled=not confirm_delete, type="secondary"):
+                try:
+                    request_api(
+                        f"/admin/users/{account_to_delete['id']}",
+                        "DELETE",
+                        token=token,
+                    )
+                    st.session_state["admin_notice"] = (
+                        f"{account_to_delete['name']}'s personal details were removed. "
+                        "Policy and payment/payout history was retained with policies cancelled."
+                    )
+                    st.rerun()
+                except RuntimeError as error:
+                    st.error(str(error))
+
     elif page == "Trigger tools":
         st.markdown("### Record a manual reading")
+        st.info(
+            "To test a simulated payout, choose Klang Valley and enter an API value above 150 for today. "
+            "Submit again for tomorrow with a value above 150. The second reading should create payout "
+            "records for eligible active customer policies in that zone."
+        )
         st.warning("Manually entered readings are evaluated against trigger rules. Payout records do not transfer funds.")
         with st.form("admin_simulation"):
             zone = st.selectbox("Zone", zones, format_func=lambda item: item["name"])

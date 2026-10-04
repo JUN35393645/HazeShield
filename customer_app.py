@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 from pathlib import Path
 
@@ -32,6 +33,15 @@ def air_quality_sticker(reading: int | None) -> Path | None:
     return APP_DIRECTORY / name
 
 
+def api_chart_key(zone_id: int, history: list[dict]) -> str:
+    fingerprint = hashlib.sha256(
+        "|".join(
+            f"{row['reading_date']}:{row['api_value']}" for row in history
+        ).encode("utf-8")
+    ).hexdigest()[:12]
+    return f"api_history_{zone_id}_{fingerprint}"
+
+
 def set_account_session(auth_result: dict) -> None:
     st.session_state["access_token"] = auth_result["access_token"]
     st.session_state["account"] = auth_result["account"]
@@ -49,7 +59,7 @@ def go_to_signup(plan: dict, account_type: str) -> None:
     st.rerun()
 
 
-def render_api_chart(history: list[dict], height: int = 250) -> None:
+def render_api_chart(history: list[dict], key: str, height: int = 250) -> None:
     values = [
         {"reading_date": row["reading_date"], "api_value": row["api_value"]}
         for row in history
@@ -111,6 +121,7 @@ def render_api_chart(history: list[dict], height: int = 250) -> None:
             },
         },
         use_container_width=True,
+        key=key,
     )
 
 
@@ -205,7 +216,7 @@ def public_home(zones: list[dict], plans: list[dict]) -> None:
     reading = latest["api_value"] if latest else None
     label, color, background = band_for(reading)
     reading_source = latest["source"] if latest else "not available"
-    if reading_source == "SIMULATED":
+    if reading_source in {"SIMULATED", "MANUAL"}:
         reading_source = "HazeShield local data"
     reading_column, chart_column = st.columns([0.8, 1.8])
     with reading_column:
@@ -231,7 +242,7 @@ def public_home(zones: list[dict], plans: list[dict]) -> None:
         if history:
             with st.container(border=True):
                 st.caption("Daily API index · dashed line marks the API 150 trigger threshold")
-                render_api_chart(history)
+                render_api_chart(history, api_chart_key(zone["id"], history))
 
     st.markdown("### Choose a starting point")
     plan_columns = st.columns(len(plans))

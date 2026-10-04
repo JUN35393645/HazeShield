@@ -109,7 +109,7 @@ def authenticated_account(
         raise HTTPException(status_code=401, detail="Session expired or invalid")
     with domain.connect() as db:
         account = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
-    if account is None:
+    if account is None or account["account_status"] != "active":
         raise HTTPException(status_code=401, detail="Account no longer exists")
     return public_account(account)
 
@@ -133,9 +133,10 @@ def ensure_demo_credentials() -> None:
     with domain.connect() as db:
         for referral_code, (email, occupation, occupation_other, company_name, password) in demo_accounts.items():
             user = db.execute(
-                "SELECT id, password_hash FROM users WHERE referral_code=?", (referral_code,)
+                "SELECT id, password_hash, account_status FROM users WHERE referral_code=?",
+                (referral_code,),
             ).fetchone()
-            if user is None or user["password_hash"]:
+            if user is None or user["password_hash"] or user["account_status"] != "active":
                 continue
             db.execute(
                 "UPDATE users SET email=?, password_hash=?, occupation=COALESCE(occupation, ?), "
@@ -186,7 +187,10 @@ def register_account(payload: AccountCreation) -> dict[str, Any]:
 def login_account(payload: LoginRequest) -> dict[str, Any]:
     email = payload.email.strip().lower()
     with domain.connect() as db:
-        account = db.execute("SELECT * FROM users WHERE email=? COLLATE NOCASE", (email,)).fetchone()
+        account = db.execute(
+            "SELECT * FROM users WHERE email=? COLLATE NOCASE AND account_status='active'",
+            (email,),
+        ).fetchone()
     if account is None or not verify_password(payload.password, account["password_hash"] or ""):
         raise HTTPException(status_code=401, detail="Gmail or password is incorrect")
     profile = public_account(account)
@@ -216,6 +220,71 @@ def get_users(
     _: dict[str, Any] = Depends(admin_account),
 ) -> list[dict[str, Any]]:
     return [public_account(row) for row in domain.get_users(role)]
+
+
+def anonymize_user_account(user_id: int, actor: dict[str, Any]) -> dict[str, str]:
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    with domain.connect() as db:
+        target = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        if target is None or target["account_status"] != "active":
+            raise HTTPException(status_code=404, detail="Active account not found")
+        if target["role"] == "admin":
+            raise HTTPException(status_code=409, detail="Admin accounts cannot be deleted here")
+
+        policy_ids = [
+            row["id"] for row in db.execute(
+                "SELECT id FROM policies WHERE user_id=? OR sponsor_user_id=? "
+                "OR sponsor_policy_id IN (SELECT id FROM policies WHERE user_id=? OR sponsor_user_id=?)",
+                (user_id, user_id, user_id, user_id),
+            ).fetchall()
+        ]
+        if policy_ids:
+            placeholders = ",".join("?" for _ in policy_ids)
+            cancelled = db.execute(
+                f"UPDATE policies SET status='cancelled' WHERE id IN ({placeholders}) AND status!='cancelled'",
+                policy_ids,
+            ).rowcount
+            db.execute(
+                f"UPDATE payouts SET wallet='Anonymized' WHERE policy_id IN ({placeholders})",
+                policy_ids,
+            )
+            db.execute(
+                f"UPDATE payments SET method='Anonymized' WHERE policy_id IN ({placeholders})",
+                policy_ids,
+            )
+        else:
+            cancelled = 0
+        db.execute(
+            "UPDATE employer_memberships SET status='removed' "
+            "WHERE employer_id=? OR customer_id=?",
+            (user_id, user_id),
+        )
+        db.execute("DELETE FROM notifications WHERE user_id=?", (user_id,))
+        db.execute(
+            "UPDATE users SET name=?, email=NULL, password_hash=NULL, zone_id=NULL, wallet=NULL, "
+            "occupation=NULL, occupation_other=NULL, company_name=NULL, "
+            "account_status='deleted' WHERE id=?",
+            (f"Deleted account {user_id}", user_id),
+        )
+        db.execute(
+            "INSERT INTO audit_logs(actor_id, action, details, created_at) VALUES (?, ?, ?, ?)",
+            (
+                actor["id"],
+                "account_anonymized",
+                f"account_id={user_id}; role={target['role']}; policies_cancelled={cancelled}",
+                datetime.now().isoformat(timespec="seconds"),
+            ),
+        )
+    return {"status": "anonymized"}
+
+
+@api.delete("/api/v1/admin/users/{user_id}")
+def delete_admin_user(
+    user_id: int,
+    account: dict[str, Any] = Depends(admin_account),
+) -> dict[str, str]:
+    return anonymize_user_account(user_id, account)
 
 
 @api.get("/api/v1/plans")
