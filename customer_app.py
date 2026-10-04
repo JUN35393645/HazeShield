@@ -25,11 +25,11 @@ def air_quality_sticker(reading: int | None) -> Path | None:
     if reading is None:
         return None
     if reading <= 100:
-        name = "Good.png"
+        name = "Good_display.png"
     elif reading <= 150:
-        name = "Moderate.png"
+        name = "Moderate_display.png"
     else:
-        name = "Bad.png"
+        name = "Bad_display.png"
     return APP_DIRECTORY / name
 
 

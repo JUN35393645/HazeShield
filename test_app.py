@@ -9,6 +9,7 @@ import app
 import admin_app
 import customer_app
 from fastapi import HTTPException
+from PIL import Image
 from backend import feed
 from backend.security import hash_password, issue_session_token, session_user_id, verify_password
 from backend.main import get_config as api_get_config
@@ -54,10 +55,10 @@ class HazeShieldTests(unittest.TestCase):
 
     def test_air_quality_stickers_follow_api_severity_bands(self) -> None:
         self.assertIsNone(customer_app.air_quality_sticker(None))
-        self.assertEqual(customer_app.air_quality_sticker(100).name, "Good.png")
-        self.assertEqual(customer_app.air_quality_sticker(101).name, "Moderate.png")
-        self.assertEqual(customer_app.air_quality_sticker(150).name, "Moderate.png")
-        self.assertEqual(customer_app.air_quality_sticker(151).name, "Bad.png")
+        self.assertEqual(customer_app.air_quality_sticker(100).name, "Good_display.png")
+        self.assertEqual(customer_app.air_quality_sticker(101).name, "Moderate_display.png")
+        self.assertEqual(customer_app.air_quality_sticker(150).name, "Moderate_display.png")
+        self.assertEqual(customer_app.air_quality_sticker(151).name, "Bad_display.png")
 
     def test_admin_chart_axis_scales_with_account_counts(self) -> None:
         small_counts = [{"Zone": "Ipoh", "Customers": 1}]
@@ -113,7 +114,20 @@ class HazeShieldTests(unittest.TestCase):
         self.assertEqual(default_zone["name"], "Ipoh")
         reading = app.get_reading(default_zone["id"], date.today())
         self.assertGreater(reading, 150)
-        self.assertEqual(customer_app.air_quality_sticker(reading).name, "Bad.png")
+        self.assertEqual(customer_app.air_quality_sticker(reading).name, "Bad_display.png")
+
+    def test_air_quality_sticker_assets_share_a_fixed_canvas(self) -> None:
+        sticker_paths = [
+            customer_app.air_quality_sticker(reading)
+            for reading in (50, 120, 180)
+        ]
+        self.assertTrue(all(path is not None and path.is_file() for path in sticker_paths))
+        dimensions = []
+        for path in sticker_paths:
+            if path is not None:
+                with Image.open(path) as image:
+                    dimensions.append(image.size)
+        self.assertEqual(dimensions, [(500, 500)] * 3)
 
     def test_demo_accounts_are_not_duplicated_on_database_reinitialization(self) -> None:
         initial_ids = [user["id"] for user in app.get_users()]
