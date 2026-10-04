@@ -109,7 +109,7 @@ def main() -> None:
         st.markdown("### HazeShield Admin")
         st.caption(f"Signed in as {account['email']}")
         page = st.radio("Management", ["Overview", "Accounts and policies", "Trigger tools", "Audit log"])
-        if st.button("Sign out"):
+        if st.button("Sign out", key="admin_sign_out"):
             st.session_state.pop("admin_access_token", None)
             st.rerun()
         st.caption("Operations console")
