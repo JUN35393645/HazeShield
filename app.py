@@ -447,11 +447,18 @@ def render_styles(st_module: Any) -> None:
         :root { --ink:#172d26; --muted:#66746d; --green:#176b52; --lime:#c7e76b; --coral:#ee7658; --paper:#f6f7f1; }
         html, body, [class*="css"] { font-family:'DM Sans',sans-serif; color:var(--ink); }
         .stApp { background: radial-gradient(ellipse at 92% 2%, #e2f0dc 0, transparent 35%), var(--paper); }
+        header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] { display:none; height:0; }
         h1,h2,h3 { font-family:'Manrope','DM Sans',sans-serif; letter-spacing:0 !important; color:var(--ink); }
-        .block-container { max-width:1180px; padding-top:1.7rem; padding-bottom:3rem; }
+        .block-container { max-width:none; width:100%; padding:1rem clamp(1rem,4vw,4rem) 3rem; }
         [data-testid="stSidebar"] { background:#173c31; }
         [data-testid="stSidebar"] * { color:#f2f7eb !important; }
         [data-testid="stSidebar"] [data-baseweb="select"] * { color:#172d26 !important; }
+        div[data-testid="stRadio"] > label { display:none; }
+        div[data-testid="stRadio"] [role="radiogroup"] { gap:4px; width:max-content; max-width:100%; margin:0 auto 1rem; padding:6px; border:1px solid #e7e9df; border-radius:12px; background:#fff; }
+        div[data-testid="stRadio"] [role="radiogroup"] label { padding:9px 18px; border-radius:8px; color:#52645a; font-weight:700; transition:background .18s ease,color .18s ease,transform .18s ease; }
+        div[data-testid="stRadio"] [data-testid="stRadioOption"] > div > div:first-child { display:none; }
+        div[data-testid="stRadio"] [role="radiogroup"] label:hover { background:#edf4e8; color:#176b52; transform:translateY(-1px); }
+        div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) { background:#173c31; color:#fff; }
         div[data-testid="stMetric"] { background:#fff; border:1px solid #e7e9df; border-radius:8px; padding:16px 18px; }
         div[data-testid="stMetricLabel"] { color:#66746d; }
         div[data-testid="stMetricValue"] { color:#176b52; font-family:'Manrope',sans-serif; }
@@ -471,7 +478,9 @@ def render_styles(st_module: Any) -> None:
         .api-number { font-family:'Manrope',sans-serif; font-size:3.4rem; line-height:1; font-weight:800; }
         .small-muted { color:#66746d; font-size:.9rem; }
         .stButton > button { border-radius:6px; min-height:42px; font-weight:700; }
-        @media (max-width:650px) { .block-container { padding:1rem 1rem 2rem; } .hero h1,.public-hero h1 { font-size:2rem; } .public-hero { padding:28px 22px; } }
+        .stButton > button[kind="primary"] { min-height:58px; padding:0 26px; border-radius:10px; font-size:1.08rem; box-shadow:0 8px 20px #176b5233; transition:transform .18s ease,box-shadow .18s ease; }
+        .stButton > button[kind="primary"]:hover { transform:translateY(-2px); box-shadow:0 12px 24px #176b5244; }
+        @media (max-width:650px) { .block-container { padding:1rem 1rem 2rem; } .hero h1,.public-hero h1 { font-size:2rem; } .public-hero { padding:28px 22px; } div[data-testid="stRadio"] [role="radiogroup"] { width:100%; justify-content:center; flex-wrap:wrap; } div[data-testid="stRadio"] [role="radiogroup"] label { padding:8px 10px; } }
         </style>
         """,
         unsafe_allow_html=True,

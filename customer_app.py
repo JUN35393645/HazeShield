@@ -23,14 +23,101 @@ def policy_is_current(policy: dict, today: date | None = None) -> bool:
     return policy["status"] == "active" and policy["start_date"] <= current_date <= policy["end_date"]
 
 
-def sign_up(zones: list[dict]) -> None:
+def go_to_signup(plan: dict, account_type: str) -> None:
+    st.session_state["preferred_plan_id"] = plan["id"]
+    st.session_state["account_type"] = account_type
+    st.session_state["go_get_protection"] = True
+    st.rerun()
+
+
+def render_api_chart(history: list[dict], height: int = 250) -> None:
+    values = [
+        {"reading_date": row["reading_date"], "api_value": row["api_value"]}
+        for row in history
+    ]
+    if not values:
+        return
+    y_max = max(150, max(row["api_value"] for row in values)) * 1.1
+    st.vega_lite_chart(
+        spec={
+            "data": {"values": values},
+            "width": "container",
+            "height": height,
+            "encoding": {
+                "x": {
+                    "field": "reading_date",
+                    "type": "temporal",
+                    "axis": {"title": None, "grid": False, "labelAngle": 0},
+                },
+                "y": {
+                    "field": "api_value",
+                    "type": "quantitative",
+                    "axis": {"title": "API index", "gridColor": "#e7e9df"},
+                    "scale": {"domain": [0, y_max]},
+                },
+            },
+            "layer": [
+                {"mark": {"type": "area", "color": "#176b52", "opacity": 0.1}},
+                {
+                    "mark": {
+                        "type": "line",
+                        "color": "#176b52",
+                        "strokeWidth": 3,
+                        "point": {"filled": True, "color": "#176b52", "size": 48},
+                    },
+                    "encoding": {
+                        "tooltip": [
+                            {"field": "reading_date", "type": "temporal", "title": "Date"},
+                            {"field": "api_value", "type": "quantitative", "title": "API"},
+                        ]
+                    },
+                },
+                {
+                    "mark": {"type": "rule", "color": "#ee7658", "strokeDash": [6, 4], "strokeWidth": 2},
+                    "encoding": {
+                        "x": {"field": "reading_date", "type": "temporal", "aggregate": "min"},
+                        "x2": {"field": "reading_date", "type": "temporal", "aggregate": "max"},
+                        "y": {"datum": 150},
+                    },
+                },
+            ],
+            "config": {
+                "view": {"stroke": None},
+                "axis": {
+                    "labelColor": "#66746d",
+                    "titleColor": "#66746d",
+                    "labelFont": "DM Sans",
+                    "titleFont": "DM Sans",
+                },
+            },
+        },
+        use_container_width=True,
+    )
+
+
+def sign_up(zones: list[dict], plans: list[dict]) -> None:
     account_type = st.radio("Account type", ["Individual", "Employer"], horizontal=True, key="account_type")
+    account_plans = [
+        plan for plan in plans
+        if (plan["plan_type"] == "group") == (account_type == "Employer")
+    ]
+    preferred_plan_id = st.session_state.get("preferred_plan_id")
+    default_plan_index = next(
+        (index for index, plan in enumerate(account_plans) if plan["id"] == preferred_plan_id),
+        0,
+    )
     with st.form("signup_form"):
         name = st.text_input("Full name")
         email = st.text_input("Gmail address", placeholder="you@gmail.com")
         password = st.text_input("Password", type="password", help="Use at least 8 characters.")
         confirm_password = st.text_input("Confirm password", type="password")
         zone = st.selectbox("Primary zone", zones, format_func=lambda item: f"{item['name']}, {item['state']}")
+        package = st.selectbox(
+            "Preferred package",
+            account_plans,
+            index=default_plan_index,
+            format_func=lambda item: f"{item['name']} · {money(item['price'])}",
+        )
         if account_type == "Individual":
             occupation = st.selectbox("Occupation", OCCUPATIONS)
             occupation_other = st.text_input("Tell us your occupation", disabled=occupation != "Other")
@@ -40,6 +127,9 @@ def sign_up(zones: list[dict]) -> None:
             occupation_other = None
             company_name = st.text_input("Business name")
         submitted = st.form_submit_button("Create account", type="primary", use_container_width=True)
+    if st.button("Already have an account? Sign in", key="signup_signin_link"):
+        st.session_state["go_sign_in"] = True
+        st.rerun()
     if not submitted:
         return
     if password != confirm_password:
@@ -51,6 +141,7 @@ def sign_up(zones: list[dict]) -> None:
         "occupation_other": occupation_other, "company_name": company_name,
     }
     try:
+        st.session_state["preferred_plan_id"] = package["id"]
         set_account_session(request_api("/auth/register", "POST", payload))
         st.session_state["account_notice"] = "Account created. Your status is Not Protected until cover is activated."
         st.rerun()
@@ -76,22 +167,19 @@ def sign_in() -> None:
 
 
 def public_home(zones: list[dict], plans: list[dict]) -> None:
-    cta, learn = st.columns([1, 3])
-    with cta:
-        if st.button("Get Protection Now", type="primary", use_container_width=True):
-            st.session_state["go_get_protection"] = True
-            st.rerun()
-    with learn:
-        st.caption("Demo coverage only · No real payment or insurance contract is created")
+    if st.button("Get Protection Now", type="primary", use_container_width=True):
+        st.session_state["go_get_protection"] = True
+        st.rerun()
+    st.caption("Payments and payouts are simulated; no insurance contract or real transaction is created.")
 
     st.markdown("### Haze can interrupt a workday")
     st.write("Haze can irritate the eyes and airways, make outdoor work harder, and disrupt the hours people rely on to earn. HazeShield explores a clear, pre-defined support trigger with personal or employer-sponsored cover.")
     metric_a, metric_b, metric_c = st.columns(3)
     metric_a.metric("Trigger threshold", f"API {150}")
     metric_b.metric("Qualifying period", "2 days")
-    metric_c.metric("Demo support", money(30), "per qualifying day")
+    metric_c.metric("Indicative support", money(30), "per qualifying day")
 
-    st.markdown("### Check the latest demo readings")
+    st.markdown("### Check the latest air-quality readings")
     zone = st.selectbox("Choose a zone", zones, format_func=lambda item: f"{item['name']} · {item['state']}", key="public_zone")
     snapshot = request_api(f"/zones/{zone['id']}/dashboard")
     latest = snapshot["latest"]
@@ -105,11 +193,13 @@ def public_home(zones: list[dict], plans: list[dict]) -> None:
             f"<span class='air-band' style='background:{background};color:{color}'>{label}</span></div>",
             unsafe_allow_html=True,
         )
-        st.caption(f"Source: {latest['source'] if latest else 'not available'}. Demo readings are not official health guidance.")
+        st.caption(f"Source: {latest['source'] if latest else 'not available'}. Readings are not official health guidance.")
     with chart_column:
         history = list(reversed(snapshot["history"]))
         if history:
-            st.area_chart({"API index": {row["reading_date"]: row["api_value"] for row in history}}, height=250)
+            with st.container(border=True):
+                st.caption("Daily API index · dashed line marks the API 150 trigger threshold")
+                render_api_chart(history)
 
     st.markdown("### Choose a starting point")
     plan_columns = st.columns(len(plans))
@@ -119,7 +209,10 @@ def public_home(zones: list[dict], plans: list[dict]) -> None:
                 st.markdown(f"#### {plan['name']}")
                 st.markdown(f"<div class='plan-price'>{money(plan['price'])}</div>", unsafe_allow_html=True)
                 st.caption(plan["description"])
-                st.caption("Individual cover")
+                account_type = "Employer" if plan["plan_type"] == "group" else "Individual"
+                st.caption(f"{account_type} package")
+                if st.button(f"Choose {plan['name']}", key=f"home_plan_{plan['id']}", use_container_width=True):
+                    go_to_signup(plan, account_type)
 
 
 def individual_account(profile: dict, zones: list[dict], plans: list[dict], token: str) -> None:
@@ -138,22 +231,34 @@ def individual_account(profile: dict, zones: list[dict], plans: list[dict], toke
     st.markdown(f"**Occupation:** {profile.get('occupation_other') or profile.get('occupation') or 'Not set'} · **Primary zone:** {zone['name']}")
     if history:
         st.markdown("### Zone trend")
-        st.area_chart({"API index": {row["reading_date"]: row["api_value"] for row in reversed(history)}}, height=220)
+        with st.container(border=True):
+            st.caption("Daily API index · dashed line marks the API 150 trigger threshold")
+            render_api_chart(list(reversed(history)), height=220)
 
     st.markdown("### Personal plans")
+    preferred_plan_id = st.session_state.pop("preferred_plan_id", None)
+    default_plan_index = next(
+        (index for index, plan in enumerate(individual_plans) if plan["id"] == preferred_plan_id),
+        0,
+    )
     with st.form("individual_purchase"):
-        plan = st.selectbox("Choose a plan", individual_plans, format_func=lambda item: f"{item['name']} · {money(item['price'])}")
+        plan = st.selectbox(
+            "Choose a plan",
+            individual_plans,
+            index=default_plan_index,
+            format_func=lambda item: f"{item['name']} · {money(item['price'])}",
+        )
         covered_zone = st.selectbox("Covered zone", zones, index=next(
             (index for index, item in enumerate(zones) if item["id"] == zone_id), 0
         ), format_func=lambda item: f"{item['name']}, {item['state']}")
         wallet = st.selectbox("Payout wallet", ["Touch n Go", "GrabPay", "Boost"])
-        submitted = st.form_submit_button("Activate demo cover", type="primary")
+        submitted = st.form_submit_button("Activate cover (simulated)", type="primary")
     if submitted:
         try:
             request_api("/policies", "POST", {
                 "plan_id": plan["id"], "zone_id": covered_zone["id"], "wallet": wallet,
             }, token=token)
-            st.success("Demo plan recorded. Refreshing protection status.")
+            st.success("Plan selection recorded. Refreshing protection status.")
             st.rerun()
         except RuntimeError as error:
             st.error(str(error))
@@ -219,12 +324,12 @@ def employer_account(profile: dict, zones: list[dict], plans: list[dict], token:
         group_plan = group_plans[0]
         st.markdown(f"**{group_plan['name']}** · {money(group_plan['price'])} · {group_plan['description']}")
         zone = st.selectbox("Work zone", zones, format_func=lambda item: f"{item['name']}, {item['state']}", key="employer_zone")
-        if st.button("Activate demo group cover", type="primary", disabled=not members):
+        if st.button("Activate group cover (simulated)", type="primary", disabled=not members):
             try:
                 request_api("/policies", "POST", {
                     "plan_id": group_plan["id"], "zone_id": zone["id"], "wallet": "Touch n Go",
                 }, token=token)
-                st.success("Demo group policy recorded. Active roster members are covered.")
+                st.success("Group plan selection recorded. Active roster members are covered.")
                 st.rerun()
             except RuntimeError as error:
                 st.error(str(error))
@@ -237,7 +342,6 @@ def main() -> None:
     st.set_page_config(page_title="HazeShield · Protection for outdoor work", page_icon="🌿", layout="wide")
     render_styles(st)
     try:
-        config = request_api("/config")
         zones = request_api("/zones")
         plans = request_api("/plans")
     except RuntimeError as error:
@@ -258,7 +362,16 @@ def main() -> None:
     if account is None:
         if st.session_state.pop("go_get_protection", False):
             st.session_state["public_navigation"] = "Get protection"
-        page = st.radio("Navigate", ["Home", "Plans", "Sign in", "Get protection"], horizontal=True, key="public_navigation")
+        if st.session_state.pop("go_sign_in", False):
+            st.session_state["public_navigation"] = "Sign in"
+        st.markdown("<div class='eyebrow' style='font-size:1.2rem'>HazeShield</div>", unsafe_allow_html=True)
+        page = st.radio(
+            "Navigate",
+            ["Home", "Plans", "Sign in", "Get protection"],
+            horizontal=True,
+            key="public_navigation",
+            label_visibility="collapsed",
+        )
         if page == "Home":
             st.markdown(
                 f"<section class='public-hero'><div class='eyebrow'>HazeShield · MALAYSIA · {date.today():%d %b %Y}</div>"
@@ -266,28 +379,32 @@ def main() -> None:
                 "<p>Browse practical personal plans, understand the haze trigger, and find protection for outdoor work.</p></section>",
                 unsafe_allow_html=True,
             )
-            public_home(zones, [plan for plan in plans if plan["plan_type"] != "group"])
+            public_home(zones, plans)
         elif page == "Plans":
-            st.markdown("<div class='hero'><div class='eyebrow'>PERSONAL COVER</div><h1>Plans for uncertain workdays</h1><p>Choose individual cover or create an employer account to protect an existing team.</p></div>", unsafe_allow_html=True)
-            st.markdown("### Individual protection plans")
+            st.markdown("<div class='hero'><div class='eyebrow'>PROTECTION PLANS</div><h1>Plans for uncertain workdays</h1><p>Choose personal cover or a group package for your team.</p></div>", unsafe_allow_html=True)
+            st.markdown("### Choose a protection package")
             individual_plans = [plan for plan in plans if plan["plan_type"] != "group"]
-            columns = st.columns(len(individual_plans))
-            for column, plan in zip(columns, individual_plans):
+            all_plans = individual_plans + [plan for plan in plans if plan["plan_type"] == "group"]
+            columns = st.columns(len(all_plans))
+            for column, plan in zip(columns, all_plans):
                 with column:
                     with st.container(border=True):
                         st.markdown(f"#### {plan['name']}")
                         st.markdown(f"<div class='plan-price'>{money(plan['price'])}</div>", unsafe_allow_html=True)
                         st.write(plan["description"])
-            if st.button("Get Protection Now", type="primary"):
-                st.session_state["go_get_protection"] = True
-                st.rerun()
+                        account_type = "Employer" if plan["plan_type"] == "group" else "Individual"
+                        st.caption(f"{account_type} package")
+                        if st.button(f"Choose {plan['name']}", key=f"plans_plan_{plan['id']}", use_container_width=True):
+                            go_to_signup(plan, account_type)
         elif page == "Sign in":
             st.markdown("<div class='hero'><div class='eyebrow'>ACCOUNT</div><h1>Welcome back</h1><p>Sign in using your Gmail address and password.</p></div>", unsafe_allow_html=True)
             sign_in()
         else:
             st.markdown("<div class='hero'><div class='eyebrow'>GET PROTECTION</div><h1>Create your account</h1><p>Choose personal cover or set up an employer account for your team.</p></div>", unsafe_allow_html=True)
-            sign_up(zones)
-        st.caption(f"Prototype · simulated payments · data mode: {config['data_mode']}")
+            sign_up(zones, plans)
+            st.caption("Account creation does not activate cover or charge a payment. All payments and payouts are simulated.")
+        if page != "Get protection":
+            st.caption("Payments and payouts are simulated; no insurance contract or real transaction is created.")
         return
 
     st.markdown(
