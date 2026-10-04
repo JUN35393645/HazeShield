@@ -12,6 +12,11 @@ from app import money, render_styles, request_api
 APP_DIRECTORY = Path(__file__).resolve().parent
 
 
+def chart_y_axis_max(rows: list[dict[str, str | int]], value: str) -> int:
+    maximum = max((int(row[value]) for row in rows), default=0)
+    return max(1, maximum)
+
+
 def render_bar_chart(
     rows: list[dict[str, str | int]],
     category: str,
@@ -31,7 +36,13 @@ def render_bar_chart(
         "y": {
             "field": value,
             "type": "quantitative",
-            "axis": {"title": None, "gridColor": "#e7e9df"},
+            "scale": {"domain": [0, chart_y_axis_max(rows, value)], "nice": True},
+            "axis": {
+                "title": None,
+                "gridColor": "#e7e9df",
+                "format": "d",
+                "tickMinStep": 1,
+            },
         },
     }
     if split_by:

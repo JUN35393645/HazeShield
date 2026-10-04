@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import app
+import admin_app
 import customer_app
 from fastapi import HTTPException
 from backend import feed
@@ -57,6 +58,15 @@ class HazeShieldTests(unittest.TestCase):
         self.assertEqual(customer_app.air_quality_sticker(101).name, "Moderate.png")
         self.assertEqual(customer_app.air_quality_sticker(150).name, "Moderate.png")
         self.assertEqual(customer_app.air_quality_sticker(151).name, "Bad.png")
+
+    def test_admin_chart_axis_scales_with_account_counts(self) -> None:
+        small_counts = [{"Zone": "Ipoh", "Customers": 1}]
+        larger_counts = [
+            {"Zone": "Ipoh", "Customers": 8},
+            {"Zone": "Klang Valley", "Customers": 15},
+        ]
+        self.assertEqual(admin_app.chart_y_axis_max(small_counts, "Customers"), 1)
+        self.assertEqual(admin_app.chart_y_axis_max(larger_counts, "Customers"), 15)
 
     def test_area_chart_keys_change_with_zone_and_readings(self) -> None:
         history = [{"reading_date": "2026-10-01", "api_value": 80}]
