@@ -9,3 +9,7 @@ hazeshield.db
 *.sqlite3
 *.db-shm
 *.db-wal
+web/node_modules/
+web/.next/
+web/*.tsbuildinfo
+!web/.env.example
