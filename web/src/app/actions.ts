@@ -140,7 +140,7 @@ export async function recordReading(formData: FormData) {
 
 export async function resetDemoActivity(formData: FormData) {
   await requireAdmin();
-  if (formData.get("confirm") !== "on") redirect("/admin?error=Confirm%20the%20demo%20activity%20reset");
+  if (formData.get("confirm") !== "on") redirect("/admin?error=Confirm%20the%20activity%20reset");
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_reset_demo_activity");
   if (error) redirect(`/admin?error=${encodeURIComponent(error.message)}`);

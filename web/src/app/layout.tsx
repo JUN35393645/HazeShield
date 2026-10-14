@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { OfflineRegistration } from "@/components/offline-registration";
 import "./globals.css";
 
@@ -20,14 +19,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <OfflineRegistration />
         <header className="topbar">
-          <Link className="brand" href="/"><Image src="/stickers/good.png" alt="" width={512} height={512} /><span>HazeShield</span></Link>
+          <Link className="brand" href="/">HazeShield</Link>
           <nav aria-label="Main navigation">
             <Link href="/">Home</Link><Link href="/dashboard">My account</Link>
             <Link className="nav-button" href="/login">Sign in</Link>
           </nav>
         </header>
         <main>{children}</main>
-        <footer className="footer">Prototype only · No insurance cover or funds are issued or transferred.</footer>
+        <footer className="footer">HazeShield · Protection for outdoor workers</footer>
       </body>
     </html>
   );
