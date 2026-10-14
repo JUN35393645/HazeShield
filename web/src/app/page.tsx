@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { money } from "@/lib/format";
+import { TrendChart } from "@/components/trend-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div><span className="reading-value">{score ?? "—"}</span><span className="badge">{band}</span></div>
           <p>{latest ? `${latest.reading_date} · ${latest.source}` : "No reading available"}<br />Readings are not official health guidance.</p>
         </div>
-        {readings && readings.length > 0 && <div className="history">{[...readings].reverse().map((reading) => <div className="history-row" key={reading.reading_date}><span>{reading.reading_date}</span><div className="bar-track"><div className={`bar ${reading.api_value > 150 ? "bar-alert" : ""}`} style={{ width: `${Math.min(100, reading.api_value / 3)}%` }} /></div><b>{reading.api_value}</b></div>)}</div>}
+        {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={[...readings].reverse().map((reading) => ({ label: reading.reading_date.slice(5), value: reading.api_value }))} /></div>}
       </section>
 
       <section className="section">

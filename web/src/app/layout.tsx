@@ -18,7 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <OfflineRegistration />
         <header className="topbar">
-          <Link className="brand" href="/">Haze<span>Shield</span></Link>
+          <Link className="brand" href="/"><img src="/icon.svg" alt="" /><span>Haze</span>Shield</Link>
           <nav aria-label="Main navigation">
             <Link href="/">Home</Link><Link href="/dashboard">My account</Link>
             <Link className="nav-button" href="/login">Sign in</Link>

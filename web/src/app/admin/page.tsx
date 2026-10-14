@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, money } from "@/lib/format";
 import { anonymizeAccount, recordReading, resetDemoActivity, signOut, updatePolicyStatus } from "@/app/actions";
+import { BarChart } from "@/components/trend-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,24 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   if (errors.length) throw new Error(`Could not load admin console: ${errors[0]?.message}`);
   const active = (policies ?? []).filter((item) => item.status === "active" && item.start_date <= new Date().toISOString().slice(0, 10) && item.end_date >= new Date().toISOString().slice(0, 10));
   const byRole = (accounts ?? []).filter((account) => account.role !== "admin");
+  const accountMix = ["customer", "employer"].map((role) => ({
+    label: role === "customer" ? "Customers" : "Employers",
+    value: byRole.filter((account) => account.role === role).length,
+  }));
+  const accountsByZone = (zones ?? []).map((zone) => ({
+    label: zone.name,
+    value: byRole.filter((account) => account.zone_id === zone.id).length,
+  })).filter((item) => item.value > 0);
+  const policiesByPlan = new Map<string, number>();
+  (policies ?? []).forEach((policy) => {
+    const plan = Array.isArray(policy.plans) ? policy.plans[0] : policy.plans;
+    const label = `${plan?.name ?? "Unknown plan"} · ${policy.status}`;
+    policiesByPlan.set(label, (policiesByPlan.get(label) ?? 0) + 1);
+  });
+  const latestByZone = new Map<string, number>();
+  (readings ?? []).forEach((reading) => {
+    if (!latestByZone.has(reading.zone_id)) latestByZone.set(reading.zone_id, reading.api_value);
+  });
   return <div className="page-shell section">
     <div className="page-heading"><div><p className="eyebrow">Restricted operations area</p><h1>HazeShield admin</h1></div><form action={signOut}><button className="button secondary">Sign out</button></form></div>
     {params.error && <p className="error notice">{params.error}</p>}{params.success && <p className="notice">{params.success}</p>}
@@ -35,6 +54,15 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <article className="card"><p className="eyebrow">Accounts</p><strong>{byRole.length}</strong></article>
     </div>
     <p className="muted">All payment and payout figures are records only; no funds are transferred.</p>
+    <section className="section"><h2>Activity at a glance</h2><div className="grid two">
+      <BarChart title="Accounts by zone" items={accountsByZone} />
+      <BarChart title="Account types" items={accountMix} />
+      <BarChart title="Policies by plan and status" items={[...policiesByPlan].map(([label, value]) => ({ label, value }))} />
+      <BarChart title="Latest API by zone" highlightAbove={150} items={(zones ?? []).flatMap((zone) => {
+        const value = latestByZone.get(zone.id);
+        return value === undefined ? [] : [{ label: zone.name, value }];
+      })} />
+    </div></section>
     <section className="section"><h2>Accounts and policies</h2>{byRole.length ? <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Zone</th><th>Protection</th><th>Remove</th></tr></thead><tbody>{byRole.map((account) => {
       const zone = zones?.find((item) => item.id === account.zone_id);
       return <tr key={account.id}><td>{account.name}</td><td>{account.email}</td><td>{account.role}</td><td>{zone?.name ?? "—"}</td><td>{policies?.some((item) => item.user_id === account.id && item.status === "active") ? "Active" : "—"}</td><td><form action={anonymizeAccount} className="confirm-form"><input type="hidden" name="user_id" value={account.id} /><label><input type="checkbox" name="confirm" required /> Confirm</label><button className="button danger secondary">Anonymize</button></form></td></tr>;
