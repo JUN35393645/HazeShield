@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { money } from "@/lib/format";
 import { TrendChart } from "@/components/trend-chart";
@@ -28,14 +27,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="page-shell">
-      <section className="hero hero-with-logo">
+      <section className="hero hero-banner">
         <div>
           <p className="eyebrow">HazeShield · Malaysia</p>
           <h1>When the air turns hazy, your income needs a backup.</h1>
           <p>Browse practical personal plans, understand the haze trigger, and find protection for outdoor work.</p>
-          <div className="button-row"><Link className="button" href="/signup">Get started</Link><Link className="button secondary" href="/login">Sign in</Link></div>
+          <div className="button-row"><Link className="button secondary" href="/signup">Get started</Link><Link className="button secondary" href="/login">Sign in</Link></div>
         </div>
-        <Image className="brand-mascot" src="/hazeshield-logo.png" alt="HazeShield capybara mascot holding a shield" width={1536} height={1024} priority />
       </section>
 
       <section className="section">
@@ -52,13 +50,20 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <p className="eyebrow">Zone snapshot</p>
         <h2>Latest reading</h2>
         <ZonePicker zones={zones ?? []} selectedZoneId={selectedZone?.id} />
-        {selectedZone && <p className="muted">{selectedZone.name}, {selectedZone.state}</p>}
-        <div className="reading card">
-          <div><span className="reading-value" style={{ color: band.color }}>{score ?? "—"}</span><span className="badge" style={{ color: band.color, backgroundColor: band.background }}>{band.label}</span></div>
-          <AirQualityMascot value={score} />
-          <p>{latest ? `${latest.reading_date} · ${latest.source}` : "No reading available"}</p>
+        <div className="zone-overview">
+          <article className="reading card">
+            <p className="eyebrow">{selectedZone ? `${selectedZone.name} · ${selectedZone.state}` : "Air quality"}</p>
+            <div className="reading-content">
+              <div className="reading-details">
+                <span className="reading-value" style={{ color: band.color }}>{score ?? "—"}</span>
+                <span className="badge" style={{ color: band.color, backgroundColor: band.background }}>{band.label}</span>
+                <p>{latest ? `${latest.reading_date} · ${latest.source}` : "No reading available"}</p>
+              </div>
+              <AirQualityMascot value={score} />
+            </div>
+          </article>
+          {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={[...readings].reverse().map((reading) => ({ label: reading.reading_date.slice(5), value: reading.api_value }))} /></div>}
         </div>
-        {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={[...readings].reverse().map((reading) => ({ label: reading.reading_date.slice(5), value: reading.api_value }))} /></div>}
       </section>
 
       <section className="section">

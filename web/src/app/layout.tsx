@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { OfflineRegistration } from "@/components/offline-registration";
 import "./globals.css";
 
@@ -7,7 +8,13 @@ export const metadata: Metadata = {
   title: "HazeShield",
   description: "Haze cover information and account dashboard for outdoor workers.",
   applicationName: "HazeShield",
-  icons: { icon: "/stickers/good.png", apple: "/stickers/good.png" },
+  icons: {
+    icon: [
+      { url: "/app-icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/app-icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/app-icon-192.png", type: "image/png", sizes: "192x192" }],
+  },
   appleWebApp: { capable: true, title: "HazeShield", statusBarStyle: "default" },
 };
 
@@ -19,7 +26,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <OfflineRegistration />
         <header className="topbar">
-          <Link className="brand" href="/">HazeShield</Link>
+          <Link className="brand" href="/" aria-label="HazeShield home">
+            <Image src="/hazeshield-logo.png" alt="HazeShield" width={1536} height={1024} priority />
+          </Link>
           <nav aria-label="Main navigation">
             <Link href="/">Home</Link><Link href="/dashboard">My account</Link>
             <Link className="nav-button" href="/login">Sign in</Link>
