@@ -21,7 +21,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const current = (policies ?? []).filter((item) => item.status === "active" && item.start_date <= today && item.end_date >= today);
   const [{ data: payments, error: paymentError }, { data: payouts, error: payoutError }, { data: alerts, error: alertsError }] = await Promise.all([
     supabase.from("payments").select("policy_id,created_at,amount,method,status").eq("user_id", profile.id).order("created_at", { ascending: false }),
-    supabase.from("payouts").select("payout_date,amount,wallet,status,zones(name),policies!inner(user_id)").eq("policies.user_id", profile.id).order("payout_date", { ascending: false }),
+    supabase.from("payouts").select("payout_date,amount,wallet,status,policies!inner(user_id,zone_id)").eq("policies.user_id", profile.id).order("payout_date", { ascending: false }),
     supabase.from("notifications").select("message,created_at").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(10),
   ]);
   if (paymentError || payoutError || alertsError) throw new Error(`Could not load account history: ${paymentError?.message ?? payoutError?.message ?? alertsError?.message}`);
@@ -55,7 +55,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
       <section className="section"><h2>Zone trend</h2>{readings?.length ? <div className="history">{[...readings].reverse().map((row) => <div className="history-row" key={row.reading_date}><span>{row.reading_date}</span><div className="bar-track"><div className={`bar ${row.api_value > 150 ? "bar-alert" : ""}`} style={{ width: `${Math.min(100, row.api_value / 3)}%` }} /></div><b>{row.api_value}</b></div>)}</div> : <p className="muted">No readings for this zone yet.</p>}</section>
       <DataTable title="Payment history" rows={(payments ?? []).map((row) => [formatDate(row.created_at?.slice(0, 10)), planNameByPolicyId.get(row.policy_id) ?? "Plan", money(row.amount), row.status])} headings={["Date", "Plan", "Amount", "Status"]} />
-      <DataTable title="Payout history" rows={(payouts ?? []).map((row) => [formatDate(row.payout_date), (row.zones as { name?: string } | null)?.name ?? "Zone", money(row.amount), row.status])} headings={["Date", "Zone", "Amount", "Status"]} />
+      <DataTable title="Payout history" rows={(payouts ?? []).map((row) => {
+        const policy = Array.isArray(row.policies) ? row.policies[0] : row.policies;
+        const zoneName = zones?.find((zone) => zone.id === policy?.zone_id)?.name ?? "Zone";
+        return [formatDate(row.payout_date), zoneName, money(row.amount), row.status];
+      })} headings={["Date", "Zone", "Amount", "Status"]} />
       <DataTable title="Recent alerts" rows={(alerts ?? []).map((row) => [new Date(row.created_at).toLocaleString("en-MY"), row.message])} headings={["When", "Message"]} />
     </> : <EmployerDashboard profile={profile} plans={plans ?? []} zones={zones ?? []} policies={policies ?? []} members={members ?? []} />}
   </div>;
