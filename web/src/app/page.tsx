@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { money } from "@/lib/format";
 import { TrendChart } from "@/components/trend-chart";
+import { AirQualityMascot } from "@/components/air-quality-mascot";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +26,15 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="page-shell">
-      <section className="hero">
-        <p className="eyebrow">A prototype for Malaysia&apos;s outdoor workforce</p>
-        <h1>Support when haze interrupts the workday.</h1>
-        <p>Explore a simple, pre-defined haze trigger with personal or employer-sponsored cover.</p>
-        <div className="button-row"><Link className="button" href="/signup">Get started</Link><Link className="button secondary" href="/login">Sign in</Link></div>
-        <small>Prototype only. Plan information is indicative; no insurance cover is issued and no money is transferred.</small>
+      <section className="hero hero-with-logo">
+        <div>
+          <p className="eyebrow">A prototype for Malaysia&apos;s outdoor workforce</p>
+          <h1>Support when haze interrupts the workday.</h1>
+          <p>Explore a simple, pre-defined haze trigger with personal or employer-sponsored cover.</p>
+          <div className="button-row"><Link className="button" href="/signup">Get started</Link><Link className="button secondary" href="/login">Sign in</Link></div>
+          <small>Prototype only. Plan information is indicative; no insurance cover is issued and no money is transferred.</small>
+        </div>
+        <Image className="brand-mascot" src="/hazeshield-logo.png" alt="HazeShield capybara mascot holding a shield" width={1536} height={1024} priority />
       </section>
 
       <section className="section">
@@ -52,6 +57,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         {selectedZone && <p className="muted">{selectedZone.name}, {selectedZone.state}</p>}
         <div className="reading card">
           <div><span className="reading-value">{score ?? "—"}</span><span className="badge">{band}</span></div>
+          <AirQualityMascot value={score} />
           <p>{latest ? `${latest.reading_date} · ${latest.source}` : "No reading available"}<br />Readings are not official health guidance.</p>
         </div>
         {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={[...readings].reverse().map((reading) => ({ label: reading.reading_date.slice(5), value: reading.api_value }))} /></div>}

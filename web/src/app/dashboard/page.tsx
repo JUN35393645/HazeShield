@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, money } from "@/lib/format";
 import { addTeamMember, purchasePolicy, removeTeamMember, signOut } from "@/app/actions";
 import { BarChart, TrendChart } from "@/components/trend-chart";
+import { AirQualityMascot } from "@/components/air-quality-mascot";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <button className="button">Select plan</button>
         </form>
       </section>
+      {readings?.length ? <section className="section"><h2>Latest zone reading</h2><div className="card mascot-reading"><div><strong className="reading-value">{readings[0].api_value}</strong><span className="badge">{readings[0].api_value <= 100 ? "Good / moderate" : readings[0].api_value <= 150 ? "Sensitive groups" : "Unhealthy"}</span><p>{formatDate(readings[0].reading_date)} · Readings are not official health guidance.</p></div><AirQualityMascot value={readings[0].api_value} /></div></section> : null}
       <section className="section"><h2>Zone trend</h2>{readings?.length ? <TrendChart title="Daily API history" points={[...readings].reverse().map((row) => ({ label: row.reading_date.slice(5), value: row.api_value }))} /> : <p className="muted">No readings for this zone yet.</p>}</section>
       <DataTable title="Payment history" rows={(payments ?? []).map((row) => [formatDate(row.created_at?.slice(0, 10)), planNameByPolicyId.get(row.policy_id) ?? "Plan", money(row.amount), row.status])} headings={["Date", "Plan", "Amount", "Status"]} />
       <DataTable title="Payout history" rows={(payouts ?? []).map((row) => {
