@@ -3,7 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, money } from "@/lib/format";
 import { addTeamMember, purchasePolicy, removeTeamMember, signOut } from "@/app/actions";
-import { BarChart, TrendChart } from "@/components/trend-chart";
+import { TrendChart } from "@/components/trend-chart";
 import { AirQualityMascot } from "@/components/air-quality-mascot";
 import { getApiBand } from "@/lib/air-quality";
 
@@ -82,11 +82,9 @@ function EmployerDashboard({ profile, plans, zones, policies, members }: {
   const activeMembers = members.filter((member) => member.status === "active");
   const profileOf = (member: typeof members[number]) => Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
   const sponsoredCover = policies.filter((policy) => policy.sponsor_policy_id && policy.status === "active" && policy.start_date <= today && policy.end_date >= today).length;
-  const coveredMembers = activeMembers.filter((member) => policies.some((policy) => policy.user_id === member.customer_id && policy.sponsor_policy_id && policy.status === "active" && policy.start_date <= today && policy.end_date >= today)).length;
   return <>
     <h2>{profile.company_name ?? "Employer team"}</h2>
     <div className="grid three"><article className="card"><p className="eyebrow">Group cover</p><strong>{activePolicy ? "Active" : "Not active"}</strong></article><article className="card"><p className="eyebrow">Team members</p><strong>{activeMembers.length} / 20</strong></article><article className="card"><p className="eyebrow">Sponsored cover</p><strong>{sponsoredCover}</strong></article></div>
-    <section className="section"><BarChart title="Team protection" items={[{ label: "Protected members", value: coveredMembers }, { label: "Not protected", value: activeMembers.length - coveredMembers }]} /></section>
     <section className="section"><h2>Add an existing individual</h2><p className="muted">The person must already have an individual account registered with this Gmail address.</p><form action={addTeamMember} className="form inline-form"><label>Member Gmail address<input type="email" name="email" required placeholder="worker@gmail.com" /></label><button className="button">Add to team</button></form></section>
     <DataTable title="Team roster" headings={["Name", "Gmail", "Occupation", "Membership", "Protection"]} rows={members.map((member) => { const person = profileOf(member); const covered = policies.some((policy) => policy.user_id === member.customer_id && policy.status === "active" && policy.start_date <= today && policy.end_date >= today); return [person?.name ?? "Member", person?.email ?? "—", person?.occupation ?? "—", member.status, covered ? "Protected" : "Not Protected"]; })} />
     <div className="roster-actions">{activeMembers.map((member) => <form action={removeTeamMember} key={member.customer_id}><input type="hidden" name="customer_id" value={member.customer_id} /><button className="button danger secondary">Remove {profileOf(member)?.name ?? "member"}</button></form>)}</div>
