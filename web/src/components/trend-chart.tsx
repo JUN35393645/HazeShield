@@ -16,6 +16,11 @@ export function TrendChart({ title, points, threshold = 150 }: {
   const x = (index: number) => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
   const y = (value: number) => padding.top + plotHeight - (value / yMax) * plotHeight;
   const line = points.map((point, index) => `${x(index)},${y(point.value)}`).join(" ");
+  const labelCount = Math.min(points.length, 6);
+  const dateLabelIndices = new Set(Array.from(
+    { length: labelCount },
+    (_, index) => labelCount === 1 ? 0 : Math.round(index * (points.length - 1) / (labelCount - 1)),
+  ));
   const tickCount = 4;
 
   return <div className="card chart-card">
@@ -36,7 +41,7 @@ export function TrendChart({ title, points, threshold = 150 }: {
       {points.length > 1 && <polyline className="chart-line" points={line} />}
       {points.map((point, index) => <g key={`${point.label}-${index}`}>
         <circle className="chart-dot" cx={x(index)} cy={y(point.value)} r="5"><title>{point.label}: API {point.value}</title></circle>
-        {(points.length <= 10 || index === 0 || index === points.length - 1 || index % Math.ceil(points.length / 8) === 0) &&
+        {dateLabelIndices.has(index) &&
           <text className="chart-label" x={x(index)} y={height - 14} textAnchor="middle">{point.label}</text>}
       </g>)}
     </svg>
