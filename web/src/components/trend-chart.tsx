@@ -1,4 +1,4 @@
-export type TrendPoint = { label: string; value: number };
+export type TrendPoint = { label: string; value: number | null };
 
 export function TrendChart({ title, points, threshold = 150 }: {
   title: string;
@@ -11,12 +11,22 @@ export function TrendChart({ title, points, threshold = 150 }: {
   const padding = { top: 18, right: 20, bottom: 42, left: 42 };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
-  const maxValue = Math.max(threshold, ...points.map((point) => point.value), 1);
+  const maxValue = Math.max(threshold, ...points.map((point) => point.value ?? 0), 1);
   const yMax = Math.ceil(maxValue / 50) * 50 || 50;
   const x = (index: number) => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
   const y = (value: number) => padding.top + plotHeight - (value / yMax) * plotHeight;
-  const line = points.map((point, index) => `${x(index)},${y(point.value)}`).join(" ");
-  const labelCount = Math.min(points.length, 6);
+  const lineSegments: string[] = [];
+  let currentSegment: string[] = [];
+  points.forEach((point, index) => {
+    if (point.value === null) {
+      if (currentSegment.length > 1) lineSegments.push(currentSegment.join(" "));
+      currentSegment = [];
+    } else {
+      currentSegment.push(`${x(index)},${y(point.value)}`);
+    }
+  });
+  if (currentSegment.length > 1) lineSegments.push(currentSegment.join(" "));
+  const labelCount = Math.min(points.length, 7);
   const dateLabelIndices = new Set(Array.from(
     { length: labelCount },
     (_, index) => labelCount === 1 ? 0 : Math.round(index * (points.length - 1) / (labelCount - 1)),
@@ -25,7 +35,7 @@ export function TrendChart({ title, points, threshold = 150 }: {
 
   return <div className="card chart-card">
     <h3>{title}</h3>
-    <svg className="chart-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}. ${points.map((point) => `${point.label}: API ${point.value}`).join("; ")}`}>
+    <svg className="chart-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}. ${points.map((point) => `${point.label}: ${point.value === null ? "no reading" : `API ${point.value}`}`).join("; ")}`}>
       <title>{title}</title>
       {Array.from({ length: tickCount + 1 }, (_, index) => {
         const value = (yMax / tickCount) * index;
@@ -38,9 +48,9 @@ export function TrendChart({ title, points, threshold = 150 }: {
         <line className="chart-threshold" x1={padding.left} x2={width - padding.right} y1={y(threshold)} y2={y(threshold)} />
         <text className="chart-label" x={width - padding.right} y={y(threshold) - 5} textAnchor="end">Trigger {threshold}</text>
       </g>}
-      {points.length > 1 && <polyline className="chart-line" points={line} />}
+      {lineSegments.map((segment, index) => <polyline className="chart-line" points={segment} key={index} />)}
       {points.map((point, index) => <g key={`${point.label}-${index}`}>
-        <circle className="chart-dot" cx={x(index)} cy={y(point.value)} r="5"><title>{point.label}: API {point.value}</title></circle>
+        {point.value !== null && <circle className="chart-dot" cx={x(index)} cy={y(point.value)} r="5"><title>{point.label}: API {point.value}</title></circle>}
         {dateLabelIndices.has(index) &&
           <text className="chart-label" x={x(index)} y={height - 14} textAnchor="middle">{point.label}</text>}
       </g>)}

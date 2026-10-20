@@ -5,7 +5,7 @@ import { formatDate, money } from "@/lib/format";
 import { addTeamMember, purchasePolicy, removeTeamMember, signOut } from "@/app/actions";
 import { TrendChart } from "@/components/trend-chart";
 import { AirQualityMascot } from "@/components/air-quality-mascot";
-import { getApiBand } from "@/lib/air-quality";
+import { fillDailyReadings, getApiBand, getRecentDateRange } from "@/lib/air-quality";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +28,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("notifications").select("message,created_at").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(10),
   ]);
   if (paymentError || payoutError || alertsError) throw new Error(`Could not load account history: ${paymentError?.message ?? payoutError?.message ?? alertsError?.message}`);
+  const chartDates = getRecentDateRange(30);
   const { data: readings, error: readingError } = profile.zone_id
-    ? await supabase.from("readings").select("reading_date,api_value").eq("zone_id", profile.zone_id).order("reading_date", { ascending: false }).limit(30)
+    ? await supabase.from("readings").select("reading_date,api_value").eq("zone_id", profile.zone_id).gte("reading_date", chartDates[0]).lte("reading_date", chartDates[chartDates.length - 1]).order("reading_date", { ascending: false })
     : { data: [], error: null };
   if (readingError) throw new Error(`Could not load zone trend: ${readingError.message}`);
   const latestReadingBand = readings?.[0] ? getApiBand(readings[0].api_value) : null;
@@ -58,7 +59,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </form>
       </section>
       {readings?.length && latestReadingBand ? <section className="section"><h2>Latest zone reading</h2><div className="card mascot-reading"><div><strong className="reading-value" style={{ color: latestReadingBand.color }}>{readings[0].api_value}</strong><span className="badge" style={{ color: latestReadingBand.color, backgroundColor: latestReadingBand.background }}>{latestReadingBand.label}</span><p>{formatDate(readings[0].reading_date)}</p></div><AirQualityMascot value={readings[0].api_value} /></div></section> : null}
-      <section className="section"><h2>Zone trend</h2>{readings?.length ? <TrendChart title="Daily API history" points={[...readings].reverse().map((row) => ({ label: row.reading_date.slice(5), value: row.api_value }))} /> : <p className="muted">No readings for this zone yet.</p>}</section>
+      <section className="section"><h2>Zone trend</h2>{readings?.length ? <TrendChart title="Daily API history" points={fillDailyReadings(readings, chartDates)} /> : <p className="muted">No readings for this zone yet.</p>}</section>
       <DataTable title="Payment history" rows={(payments ?? []).map((row) => [formatDate(row.created_at?.slice(0, 10)), planNameByPolicyId.get(row.policy_id) ?? "Plan", money(row.amount), row.status])} headings={["Date", "Plan", "Amount", "Status"]} />
       <DataTable title="Payout history" rows={(payouts ?? []).map((row) => {
         const policy = Array.isArray(row.policies) ? row.policies[0] : row.policies;

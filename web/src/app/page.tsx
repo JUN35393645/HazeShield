@@ -4,7 +4,7 @@ import { money } from "@/lib/format";
 import { TrendChart } from "@/components/trend-chart";
 import { AirQualityMascot } from "@/components/air-quality-mascot";
 import { ZonePicker } from "@/components/zone-picker";
-import { getApiBand } from "@/lib/air-quality";
+import { fillDailyReadings, getApiBand, getRecentDateRange } from "@/lib/air-quality";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +17,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   ]);
   if (zoneError || planError) throw new Error(`Could not load HazeShield information: ${zoneError?.message ?? planError?.message}`);
   const selectedZone = zones?.find((zone) => zone.id === params.zone) ?? zones?.[0];
+  const chartDates = getRecentDateRange(7);
   const { data: readings, error: readingError } = selectedZone
-    ? await supabase.from("readings").select("reading_date,api_value,source").eq("zone_id", selectedZone.id).order("reading_date", { ascending: false }).limit(7)
+    ? await supabase.from("readings").select("reading_date,api_value,source").eq("zone_id", selectedZone.id).gte("reading_date", chartDates[0]).lte("reading_date", chartDates[chartDates.length - 1]).order("reading_date", { ascending: false })
     : { data: [], error: null };
   if (readingError) throw new Error(`Could not load air-quality data: ${readingError.message}`);
   const latest = readings?.[0];
@@ -62,7 +63,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <AirQualityMascot value={score} />
             </div>
           </article>
-          {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={[...readings].reverse().map((reading) => ({ label: reading.reading_date.slice(5), value: reading.api_value }))} /></div>}
+          {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={fillDailyReadings(readings, chartDates)} /></div>}
         </div>
       </section>
 
