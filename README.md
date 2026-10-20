@@ -105,13 +105,14 @@ You will need accounts for GitHub, Vercel, and Supabase, plus **Node.js 20.9 or 
 2. Open the project's **SQL Editor** from the left-hand menu, choose **New query**, and give the query a name such as `HazeShield web schema`.
 3. On your computer, open this repository's file `supabase\migrations\202610130001_hazeshield_web.sql` in a text editor. Select and copy the **entire** file. Paste it into the Supabase SQL Editor, then choose **Run**. Wait for it to finish. If the editor shows an error, stop here and read the first error; do not repeatedly run parts of the script at random.
 4. Check the result in Supabase **Table Editor**. You should see tables including `zones`, `plans`, `profiles`, `policies`, and `readings`. The migration creates these tables, example zones/plans, synthetic readings, security policies, and database functions. It does not import the old SQLite database.
-5. Open **Project Settings → API** (the exact menu label may change). Copy:
+5. Apply the manual trigger simulator update: open **SQL Editor → New query**, copy the entire contents of `supabase\migrations\202610200001_manual_trigger_payouts_year_round.sql` into the editor, and choose **Run**. This allows admin-entered simulator readings to create test payouts at any time of year. For an existing Supabase project, run this update migration without rerunning the initial schema migration.
+6. Open **Project Settings → API** (the exact menu label may change). Copy:
    - **Project URL** — looks like `https://abcdefgh.supabase.co`.
    - **Publishable key** or legacy **anon/public key** — the web app uses this as `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
    - **Secret key** or legacy **service_role key** — the web app uses this as `SUPABASE_SERVICE_ROLE_KEY`. This key has powerful administrative access. Treat it like a password: use it only in the server-side environment variable below, never put it in page code, a screenshot, GitHub, or a variable starting `NEXT_PUBLIC_`.
 
    The public/anon key is designed to be used by a browser when Row Level Security (RLS) is configured; the private service-role key is not. If Supabase shows a newer "publishable/secret" pair, use the publishable key for the anon variable and the secret key for the service-role variable.
-6. Open **Authentication → Providers → Email** (or the equivalent Email settings), leave email/password sign-in enabled, and find **Confirm email**. Turn it **off** for this classroom demo, then save. With confirmation off, users can sign in immediately after signup and you do not need to configure email delivery or callback URLs. This also means the app does not verify that a person owns the Gmail address they enter. Do not use this setting for a real service or real customer data.
+7. Open **Authentication → Providers → Email** (or the equivalent Email settings), leave email/password sign-in enabled, and find **Confirm email**. Turn it **off** for this classroom demo, then save. With confirmation off, users can sign in immediately after signup and you do not need to configure email delivery or callback URLs. This also means the app does not verify that a person owns the Gmail address they enter. Do not use this setting for a real service or real customer data.
 
 ### Part B — Start it on your own computer
 
@@ -231,7 +232,7 @@ Use separate accounts and a private/incognito browser window where helpful:
 1. **Visitor:** home page loads, plans appear, zone selector changes the reading.
 2. **Individual:** sign up, check that the initial status is **Not Protected**, select a plan, and check policy/payment history.
 3. **Employer:** sign up, add the existing individual using their Gmail address, select group cover, and check the roster. Try removing a member and verify the sponsored cover is cancelled.
-4. **Admin:** promote a trusted account as in Part C. Change a policy status, record a manual reading, review the audit log, and only use reset after reading the warning. A qualifying trigger needs two consecutive readings above API 150 during July–September; the rules cap records at five days per policy per year. Records shown by this demo are not real payments.
+4. **Admin:** promote a trusted account as in Part C. Change a policy status, record manual readings on two consecutive dates in the same zone, review the audit log, and only use reset after reading the warning. Both values must be above API 150. The manual simulator works year-round; the customer's policy must cover the reading dates, and the rule caps records at five payout days per policy per year.
 5. **Access checks:** while signed in as a customer, try `/admin`; it should send you away. Verify customers cannot see each other's private account records. Review the Supabase RLS policies in the migration before using any real data.
 
 For errors after deployment, inspect **Vercel → Project → Deployments → latest deployment → Build Logs** for build-time problems. For runtime/server action errors, inspect the Vercel project's **Logs**. In Supabase, check **Logs → Auth/Postgres** (menu names can vary) for sign-in or database problems. Do not paste secret keys into support requests or screenshots.

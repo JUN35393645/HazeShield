@@ -10,6 +10,21 @@ export type FormState = { error?: string; message?: string };
 
 const occupations = ["Delivery rider", "E-hailing driver", "Food vendor", "Market trader", "Construction worker", "Outdoor service worker", "Other"];
 
+type ManualReadingResult = {
+  triggered: boolean;
+  missing: boolean;
+  reason?: string;
+  payouts: number;
+};
+
+function isManualReadingResult(value: unknown): value is ManualReadingResult {
+  if (typeof value !== "object" || value === null) return false;
+  const result = value as Record<string, unknown>;
+  return typeof result.triggered === "boolean"
+    && typeof result.missing === "boolean"
+    && typeof result.payouts === "number";
+}
+
 export async function signIn(_: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
@@ -128,14 +143,28 @@ export async function updatePolicyStatus(formData: FormData) {
 export async function recordReading(formData: FormData) {
   await requireAdmin();
   const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_record_reading", {
+  const { data, error } = await supabase.rpc("admin_record_reading", {
     p_zone_id: String(formData.get("zone_id") ?? ""),
     p_reading_date: String(formData.get("reading_date") ?? ""),
     p_api_value: Number(formData.get("api_value")),
   });
   if (error) redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  if (!isManualReadingResult(data)) throw new Error("Trigger evaluation returned an invalid result.");
   revalidatePath("/admin");
-  redirect("/admin?success=Reading%20stored%20and%20trigger%20rules%20evaluated");
+  revalidatePath("/dashboard");
+  let message: string;
+  if (!data.triggered) {
+    message = data.reason === "previous_reading_missing" || data.missing
+      ? "Reading stored. Record an API value above 150 for the previous consecutive date in this zone."
+      : data.reason === "previous_reading_below_threshold"
+        ? "Reading stored. Both consecutive daily readings must be above API 150."
+        : "Reading stored. Both consecutive daily readings must be above API 150.";
+  } else if (data.payouts > 0) {
+    message = `Trigger confirmed. ${data.payouts} payout record${data.payouts === 1 ? "" : "s"} created.`;
+  } else {
+    message = "Trigger confirmed, but no new payout was created. Check for an active customer policy covering this zone and date, or the five-payout annual limit; this date may already have a payout.";
+  }
+  redirect(`/admin?success=${encodeURIComponent(message)}`);
 }
 
 export async function resetDemoActivity(formData: FormData) {
