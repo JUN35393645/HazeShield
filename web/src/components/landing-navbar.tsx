@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const links = [
   { href: "/", label: "Home" },
@@ -17,9 +17,31 @@ const links = [
 
 export function LandingNavbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+  const previousScrollY = useRef(0);
+
+  useEffect(() => {
+    previousScrollY.current = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const scrollDelta = currentScrollY - previousScrollY.current;
+
+      if (isOpen || currentScrollY < 100 || scrollDelta < -6) {
+        setIsHidden(false);
+      } else if (scrollDelta > 6) {
+        setIsHidden(true);
+      }
+
+      previousScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isOpen]);
 
   return (
-    <header className="landing-header">
+    <header className={`landing-header${isHidden ? " is-hidden" : ""}`}>
       <div className="landing-nav-wrap">
         <Link className="landing-brand" href="/" aria-label="HazeShield home" onClick={() => setIsOpen(false)}>
           <Image src="/hazeshield-logo.png" alt="HazeShield" width={1536} height={1024} priority />

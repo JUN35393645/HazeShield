@@ -9,11 +9,7 @@ export const metadata: Metadata = {
   description: "Explore HazeShield, a parametric haze income-protection prototype for Malaysian outdoor and gig workers.",
   applicationName: "HazeShield",
   icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/app-icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/app-icon-512.png", type: "image/png", sizes: "512x512" },
-    ],
+    icon: [{ url: "/hazeshield-logo.png", type: "image/png" }],
     apple: [{ url: "/app-icon-192.png", type: "image/png", sizes: "192x192" }],
   },
   openGraph: {
