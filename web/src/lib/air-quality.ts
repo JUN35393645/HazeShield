@@ -30,3 +30,19 @@ export function fillDailyReadings(
   const valuesByDate = new Map(readings.map((reading) => [reading.reading_date, reading.api_value]));
   return dates.map((date) => ({ label: date.slice(5), value: valuesByDate.get(date) ?? null }));
 }
+
+export function getIllustrativeReadings(
+  zoneId: string,
+  dates: string[],
+): { reading_date: string; api_value: number; source: "SIMULATED" }[] {
+  return dates.map((readingDate, index) => {
+    let hash = 2166136261;
+    for (const character of `${zoneId}:${readingDate}`) {
+      hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+    }
+    const apiValue = zoneId === "ipoh" && index === dates.length - 1
+      ? 160
+      : 25 + (hash >>> 0) % 111;
+    return { reading_date: readingDate, api_value: apiValue, source: "SIMULATED" };
+  });
+}

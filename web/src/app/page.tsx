@@ -8,7 +8,7 @@ import { TeamGrid } from "@/components/team-grid";
 import { TrendChart } from "@/components/trend-chart";
 import { ZonePicker } from "@/components/zone-picker";
 import { money } from "@/lib/format";
-import { fillDailyReadings, getApiBand, getRecentDateRange } from "@/lib/air-quality";
+import { fillDailyReadings, getApiBand, getIllustrativeReadings, getRecentDateRange } from "@/lib/air-quality";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     ? await supabase.from("readings").select("reading_date,api_value,source").eq("zone_id", selectedZone.id).gte("reading_date", chartDates[0]).lte("reading_date", chartDates[chartDates.length - 1]).order("reading_date", { ascending: false })
     : { data: [], error: null };
   if (readingError) throw new Error(`Could not load air-quality data: ${readingError.message}`);
-  const latest = readings?.[0];
+  const displayReadings = readings?.length
+    ? readings
+    : selectedZone
+      ? getIllustrativeReadings(selectedZone.id, chartDates).reverse()
+      : [];
+  const latest = displayReadings[0];
   const score = latest?.api_value;
   const band = getApiBand(score);
 
@@ -120,7 +125,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 <AirQualityMascot value={score} />
               </div>
             </article>
-            {readings && readings.length > 0 && <div className="chart-section"><TrendChart title={`${selectedZone?.name ?? "Zone"} daily API`} points={fillDailyReadings(readings, chartDates)} /></div>}
+            {selectedZone && <div className="chart-section"><TrendChart title={`${selectedZone.name} daily API`} points={fillDailyReadings(displayReadings, chartDates)} /></div>}
           </div>
         </section>
 

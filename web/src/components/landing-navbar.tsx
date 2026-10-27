@@ -22,8 +22,7 @@ export function LandingNavbar() {
     <header className="landing-header">
       <div className="landing-nav-wrap">
         <Link className="landing-brand" href="/" aria-label="HazeShield home" onClick={() => setIsOpen(false)}>
-          <Image src="/hazeshield-logo.png" alt="" width={56} height={44} priority />
-          <span>HazeShield</span>
+          <Image src="/hazeshield-logo.png" alt="HazeShield" width={1536} height={1024} priority />
         </Link>
         <button
           className="menu-toggle"
