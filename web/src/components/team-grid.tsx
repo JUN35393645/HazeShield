@@ -14,20 +14,22 @@ function TeamCard({ name, role, bio, photo, photoPosition, index }: (typeof team
   return (
     <article className="team-card">
       <div className="team-photo">
-        {photo && !photoFailed ? (
-          <Image
-            src={photo}
-            alt={`${name}, ${role}`}
-            fill
-            sizes="(max-width: 700px) 90vw, (max-width: 900px) 45vw, 30vw"
-            style={{ objectPosition: photoPosition }}
-            onError={() => setPhotoFailed(true)}
-          />
-        ) : (
-          <span className={`team-initials initials-${index % 4}`} aria-label={`${name} initials`}>
-            {initials(name)}
-          </span>
-        )}
+        <div className="team-avatar">
+          {photo && !photoFailed ? (
+            <Image
+              src={photo}
+              alt={`${name}, ${role}`}
+              fill
+              sizes="150px"
+              style={{ objectPosition: photoPosition }}
+              onError={() => setPhotoFailed(true)}
+            />
+          ) : (
+            <span className={`team-initials initials-${index % 4}`} aria-label={`${name} initials`}>
+              {initials(name)}
+            </span>
+          )}
+        </div>
       </div>
       <div className="team-card-copy">
         <h3>{name}</h3>

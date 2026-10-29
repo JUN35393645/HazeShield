@@ -18,7 +18,7 @@ export const team: TeamMember[] = [
     role: "Market Research Team",
     bio: "Explores worker needs and the market context for income protection.",
     photo: "/team/Akhil Chiruvella.jpeg",
-    photoPosition: "center 38%",
+    photoPosition: "center top",
   },
   {
     name: "Chen Hao",
