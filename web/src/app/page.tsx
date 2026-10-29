@@ -27,11 +27,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     ? await supabase.from("readings").select("reading_date,api_value,source").eq("zone_id", selectedZone.id).gte("reading_date", chartDates[0]).lte("reading_date", chartDates[chartDates.length - 1]).order("reading_date", { ascending: false })
     : { data: [], error: null };
   if (readingError) throw new Error(`Could not load air-quality data: ${readingError.message}`);
-  const displayReadings = readings?.length
-    ? readings
-    : selectedZone
-      ? getIllustrativeReadings(selectedZone.id, chartDates).reverse()
-      : [];
+  const storedReadingsByDate = new Map((readings ?? []).map((reading) => [reading.reading_date, reading]));
+  const displayReadings = selectedZone
+    ? getIllustrativeReadings(selectedZone.id, chartDates)
+      .map((reading) => storedReadingsByDate.get(reading.reading_date) ?? reading)
+      .reverse()
+    : [];
   const latest = displayReadings[0];
   const score = latest?.api_value;
   const band = getApiBand(score);
@@ -110,7 +111,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div className="section-heading">
             <p className="eyebrow">Zone snapshot · Prototype data</p>
             <h2 id="snapshot-title">See the haze trigger in context.</h2>
-            <p>Readings below are illustrative and do not determine any real-world payout.</p>
+            <p>Stored readings are shown where available; missing dates use illustrative values. Nothing here determines a real-world payout.</p>
           </div>
           <ZonePicker zones={zones ?? []} selectedZoneId={selectedZone?.id} />
           <div className="zone-overview">
