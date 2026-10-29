@@ -8,7 +8,7 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function TeamCard({ name, role, bio, photo, index }: (typeof team)[number] & { index: number }) {
+function TeamCard({ name, role, bio, photo, photoPosition, index }: (typeof team)[number] & { index: number }) {
   const [photoFailed, setPhotoFailed] = useState(false);
 
   return (
@@ -20,6 +20,7 @@ function TeamCard({ name, role, bio, photo, index }: (typeof team)[number] & { i
             alt={`${name}, ${role}`}
             fill
             sizes="(max-width: 700px) 90vw, (max-width: 900px) 45vw, 30vw"
+            style={{ objectPosition: photoPosition }}
             onError={() => setPhotoFailed(true)}
           />
         ) : (

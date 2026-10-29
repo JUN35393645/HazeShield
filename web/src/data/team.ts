@@ -3,6 +3,7 @@ export type TeamMember = {
   role: string;
   bio: string;
   photo?: string;
+  photoPosition?: string;
 };
 
 export const team: TeamMember[] = [
@@ -17,6 +18,7 @@ export const team: TeamMember[] = [
     role: "Market Research Team",
     bio: "Explores worker needs and the market context for income protection.",
     photo: "/team/Akhil Chiruvella.jpeg",
+    photoPosition: "center 38%",
   },
   {
     name: "Chen Hao",
